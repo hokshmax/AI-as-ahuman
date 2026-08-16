@@ -31,10 +31,10 @@ class AppConfig {
   /// ...and streams 16-bit PCM mono audio back at this rate.
   static const int outputSampleRate = 24000;
 
-  /// How often to push a fresh screenshot into the session so Gemini
-  /// keeps an up-to-date view of the screen even without asking for one.
-  static const Duration screenshotInterval = Duration(seconds: 3);
-
-  /// Screenshots are downscaled before upload to keep turnaround fast.
-  static const int screenshotMaxWidth = 1024;
+  /// Screenshots are downscaled and compressed before upload to keep
+  /// each round trip small - Gemini asks for a fresh one via the
+  /// take_screenshot tool whenever it actually needs to look, rather
+  /// than one being pushed continuously on a timer.
+  static const int screenshotMaxWidth = 768;
+  static const int screenshotJpegQuality = 55;
 }

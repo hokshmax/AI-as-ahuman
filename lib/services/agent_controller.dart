@@ -36,7 +36,6 @@ class AgentController extends ChangeNotifier {
   String? lastError;
 
   final List<StreamSubscription<dynamic>> _subs = [];
-  Timer? _screenshotTimer;
 
   Future<void> start() async {
     if (state == SessionState.connecting || state == SessionState.live) return;
@@ -83,10 +82,11 @@ class AgentController extends ChangeNotifier {
         }
       }
 
-      _screenshotTimer = Timer.periodic(
-        AppConfig.screenshotInterval,
-        (_) => _pushScreenshot(),
-      );
+      // One screenshot to establish context; after that Gemini decides
+      // when it needs a fresh look via the take_screenshot tool instead
+      // of us pushing one on a timer - that was adding a growing image
+      // to every turn for the whole session and was the main source of
+      // slow responses.
       await _pushScreenshot();
 
       if (!_live.isConnected) {
@@ -113,8 +113,6 @@ class AgentController extends ChangeNotifier {
   }
 
   Future<void> stop() async {
-    _screenshotTimer?.cancel();
-    _screenshotTimer = null;
     for (final s in _subs) {
       await s.cancel();
     }

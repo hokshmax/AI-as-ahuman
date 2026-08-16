@@ -33,9 +33,12 @@ speaker ◀──PCM16── (audio out)                         │
   shells out to the best native automation tool per OS (see below) since
   there is no single cross-platform Dart API for synthetic input.
 - **`AgentController`** is the glue: it wires mic audio to the socket,
-  socket audio to the speakers, pushes a screenshot on a timer plus
-  on-demand, and dispatches each `toolCall` to `SystemControlService`,
-  reporting the result back to Gemini so it can decide what to do next.
+  socket audio to the speakers, sends one screenshot to establish
+  context at session start (Gemini requests further ones itself via the
+  `take_screenshot` tool as needed - continuously pushing one on a timer
+  was adding a growing image to every turn and made responses slow), and
+  dispatches each `toolCall` to `SystemControlService`, reporting the
+  result back to Gemini so it can decide what to do next.
 
 The tools Gemini can call are declared in
 `lib/models/tool_definitions.dart`: `take_screenshot`, `move_mouse`,

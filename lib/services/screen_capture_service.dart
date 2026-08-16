@@ -61,7 +61,9 @@ class ScreenCaptureService {
         ? img.copyResize(decoded, width: AppConfig.screenshotMaxWidth)
         : decoded;
 
-    return Uint8List.fromList(img.encodeJpg(resized, quality: 70));
+    return Uint8List.fromList(
+      img.encodeJpg(resized, quality: AppConfig.screenshotJpegQuality),
+    );
   }
 
   /// Physical screen size in pixels, used to keep mouse coordinates that
