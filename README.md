@@ -123,12 +123,19 @@ of the real screen):
   position instead of guessing blind.
 - A cyan crosshair at `SystemControlService.lastMousePosition` (the
   real coordinates last given to moveMouse/click/drag), labeled
-  `CURSOR (x,y)`. The system prompt tells Gemini to work the way a
-  person does for anything small or uncertain: move_mouse toward the
-  target, take_screenshot to see the crosshair and check whether it's
-  actually on target, correct with another move_mouse if not, and only
-  click once it's confirmed - rather than committing to a single blind
-  guess.
+  `CURSOR (x,y)`.
+
+`move_mouse` doesn't jump the cursor straight to its target in one
+instant hop either - `AgentController._moveMouseObserved()` moves it in
+4 interpolated steps, sending a fresh frame (with the crosshair) after
+each one. This is the closest practical equivalent to a live video
+stream within the current architecture: cliclick/xdotool teleport the
+cursor with nothing to watch by default, so this manufactures an actual
+"travel" Gemini can observe frame-by-frame and react to mid-movement,
+rather than only ever getting a single before/after pair. The system
+prompt tells it to watch the cursor arrive and call move_mouse again to
+correct if the final position isn't quite on target, repeating until it
+is, before clicking.
 
 ## Testing in GitHub Codespaces
 

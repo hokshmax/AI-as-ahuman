@@ -34,7 +34,11 @@ class ToolDefinitions {
           'at roughly the horizontal/vertical midpoint of the '
           'screenshot, its x/y are roughly the screen width/height '
           'midpoints too, regardless of the screenshot image\'s own '
-          'pixel dimensions.',
+          'pixel dimensions. The cursor travels to this position in '
+          'several visible steps, and you are shown the cursor marker '
+          'at each one, so you can see it approaching your target and '
+          'immediately call move_mouse again to correct course if the '
+          'final position isn\'t quite right.',
       'parameters': {
         'type': 'OBJECT',
         'properties': {
@@ -180,13 +184,14 @@ Rules:
   the gridlines closest to the target on both axes and interpolate
   between their labels rather than eyeballing a position.
 - For anything small or uncertain, act the way a person would: call
-  move_mouse toward your target, then look at the updated screenshot
-  you're automatically shown right after - a cyan crosshair marked
-  "CURSOR (x,y)" shows exactly where it landed. If it's not on the
-  target yet, call move_mouse again to correct it (you'll automatically
-  see another updated view) and keep checking until it is. Only click
-  once the crosshair is confirmed on target. Don't skip straight to
-  clicking on a single blind guess for anything small.
+  move_mouse toward your target and watch it travel - you're
+  automatically shown the cursor (a cyan crosshair marked "CURSOR
+  (x,y)") at several points along its path, ending where it landed. If
+  the final position isn't quite on the target, call move_mouse again
+  to correct it and watch it travel again, repeating until the
+  crosshair is confirmed on target. Only click once you've confirmed
+  that. Don't skip straight to clicking on a single blind guess for
+  anything small.
 - After clicking, take_screenshot again to confirm the expected change
   actually happened (a menu opened, an app launched, a checkbox
   toggled). If it didn't, or the WRONG thing happened (e.g. a different

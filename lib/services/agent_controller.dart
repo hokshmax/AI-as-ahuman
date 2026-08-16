@@ -214,6 +214,28 @@ class AgentController extends ChangeNotifier {
     }
   }
 
+  /// Moves the cursor to (targetX, targetY) in several small steps
+  /// instead of one instant jump, sending Gemini a fresh frame (with the
+  /// cursor marker) after each step - cliclick/xdotool teleport the
+  /// cursor with nothing to "watch" otherwise, so this is what actually
+  /// lets Gemini observe the cursor progressively approaching the target
+  /// and react mid-movement, rather than only ever seeing a single
+  /// before/after pair.
+  Future<void> _moveMouseObserved(int targetX, int targetY) async {
+    const steps = 4;
+    final start = _system.lastMousePosition ?? (x: targetX, y: targetY);
+    for (var i = 1; i <= steps; i++) {
+      final t = i / steps;
+      final stepX = (start.x + (targetX - start.x) * t).round();
+      final stepY = (start.y + (targetY - start.y) * t).round();
+      await _system.moveMouse(stepX, stepY);
+      await _pushScreenshot();
+      if (i < steps) {
+        await Future.delayed(const Duration(milliseconds: 120));
+      }
+    }
+  }
+
   /// Gemini is told the real screen resolution directly (see
   /// GeminiLiveService.connect() / ToolDefinitions.screenResolutionInstruction)
   /// and asked to give move_mouse/click/drag coordinates in that same
@@ -253,16 +275,12 @@ class AgentController extends ChangeNotifier {
             call.args['x'] as int,
             call.args['y'] as int,
           );
-          await _system.moveMouse(x, y);
+          await _moveMouseObserved(x, y);
           _logAction('move_mouse($x, $y)');
-          // Automatically follow every move with an updated view marking
-          // the new cursor position, instead of relying on a separate
-          // take_screenshot call - closer to how a person just sees
-          // their cursor move rather than having to deliberately check.
-          await _pushScreenshot();
           result = {
-            'result': 'moved - an updated screenshot with the new cursor '
-                'position was sent, check it before clicking',
+            'result': 'moved - you were shown the cursor at each step '
+                'along the way, ending at ($x, $y); check the final view '
+                'before clicking',
           };
 
         case 'click':
