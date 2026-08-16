@@ -80,25 +80,35 @@ talking..." box in the UI to drive a session instead.
    | macOS | `cliclick` | `brew install cliclick` (keyboard uses built-in AppleScript) |
    | Windows | none | built-in PowerShell + user32.dll, no install needed |
 
-3. **macOS only:** `flutter create` sandboxes the app by default, which
-   silently blocks both the Gemini WebSocket connection and the
-   microphone permission prompt. Open the two files it just generated
-   and add these entitlements inside the `<dict>`:
+3. **macOS only:** `flutter create` sandboxes the app by default (App
+   Sandbox). That's incompatible with what this app does — spawning
+   `cliclick`/`osascript` subprocesses for mouse/keyboard control and
+   capturing the whole screen both require capabilities a sandboxed app
+   isn't allowed. Real automation tools on macOS (Hammerspoon,
+   BetterTouchTool, etc.) all ship unsandboxed for the same reason.
 
-   `macos/Runner/DebugProfile.entitlements` **and**
-   `macos/Runner/Release.entitlements`:
+   Open `macos/Runner/DebugProfile.entitlements` **and**
+   `macos/Runner/Release.entitlements` and turn the sandbox flag off:
    ```xml
+   <key>com.apple.security.app-sandbox</key>
+   <false/>
    <key>com.apple.security.network.client</key>
    <true/>
    <key>com.apple.security.device.audio-input</key>
    <true/>
    ```
 
-   `macos/Runner/Info.plist`:
+   And add to `macos/Runner/Info.plist`:
    ```xml
    <key>NSMicrophoneUsageDescription</key>
    <string>AI as a Human needs the microphone to talk to Gemini.</string>
    ```
+
+   The first time the app actually takes a screenshot, macOS will
+   prompt for **Screen Recording** permission (or silently fail until
+   you grant it yourself under **System Settings → Privacy & Security →
+   Screen Recording** and relaunch the app). The first click/keystroke
+   may similarly need **Accessibility** permission granted the same way.
 
    If you add `permission_handler` (or any plugin) to `pubspec.yaml`
    *after* already running `flutter create`, also do a clean rebuild so

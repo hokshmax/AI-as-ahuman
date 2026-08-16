@@ -126,11 +126,17 @@ class AgentController extends ChangeNotifier {
     _subs.add(_live.functionCalls.listen(_handleFunctionCall));
 
     _subs.add(_live.connectionState.listen((connected) {
-      if (!connected && state == SessionState.live) {
+      if (connected) {
+        _addMessage(ChatRole.system, 'Gemini session setup complete.');
+      } else if (state == SessionState.live) {
         state = SessionState.idle;
         _addMessage(ChatRole.system, 'Connection closed.');
         notifyListeners();
       }
+    }));
+
+    _subs.add(_live.errors.listen((error) {
+      _addMessage(ChatRole.system, 'Gemini error: $error');
     }));
   }
 

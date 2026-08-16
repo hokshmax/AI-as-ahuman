@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../config/app_config.dart';
@@ -34,6 +35,7 @@ class GeminiLiveService {
   final _turnCompleteController = StreamController<void>.broadcast();
   final _interruptedController = StreamController<void>.broadcast();
   final _connectionStateController = StreamController<bool>.broadcast();
+  final _errorController = StreamController<String>.broadcast();
 
   /// Raw PCM16 audio chunks spoken by the model.
   Stream<Uint8List> get audioOutput => _audioOutController.stream;
@@ -52,6 +54,10 @@ class GeminiLiveService {
   Stream<void> get interrupted => _interruptedController.stream;
 
   Stream<bool> get connectionState => _connectionStateController.stream;
+
+  /// Anything the server rejected (bad setup, invalid model, etc.) or any
+  /// unrecognized message shape, surfaced so failures aren't silent.
+  Stream<String> get errors => _errorController.stream;
 
   bool get isConnected => _setupComplete;
 
@@ -76,6 +82,7 @@ class GeminiLiveService {
       onError: (Object error) {
         _setupComplete = false;
         _connectionStateController.add(false);
+        _errorController.add('Socket error: $error');
       },
     );
 
@@ -106,9 +113,16 @@ class GeminiLiveService {
         jsonDecode(raw is String ? raw : utf8.decode(raw as List<int>))
             as Map<String, dynamic>;
 
+    debugPrint('[GeminiLive] recv: ${jsonEncode(message)}');
+
     if (message.containsKey('setupComplete')) {
       _setupComplete = true;
       _connectionStateController.add(true);
+      return;
+    }
+
+    if (message.containsKey('error')) {
+      _errorController.add(message['error'].toString());
       return;
     }
 
@@ -201,7 +215,13 @@ class GeminiLiveService {
 
   /// Sends a plain text turn, e.g. for typed input alongside voice.
   void sendText(String text) {
-    if (!_setupComplete) return;
+    if (!_setupComplete) {
+      _errorController.add(
+        'Cannot send "$text" - session setup with Gemini has not '
+        'completed yet.',
+      );
+      return;
+    }
     _send({
       'clientContent': {
         'turns': [
@@ -252,5 +272,6 @@ class GeminiLiveService {
     await _turnCompleteController.close();
     await _interruptedController.close();
     await _connectionStateController.close();
+    await _errorController.close();
   }
 }
