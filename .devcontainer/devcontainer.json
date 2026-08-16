@@ -1,0 +1,22 @@
+{
+  "name": "ai-as-ahuman (Flutter desktop)",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/desktop-lite:1": {}
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "forwardPorts": [6080],
+  "portsAttributes": {
+    "6080": {
+      "label": "noVNC desktop (view the running app here)"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["Dart-Code.flutter", "Dart-Code.dart-code"]
+    }
+  },
+  "remoteEnv": {
+    "PATH": "${containerEnv:PATH}:/opt/flutter/bin"
+  }
+}

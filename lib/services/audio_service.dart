@@ -74,6 +74,7 @@ class AudioService {
   }
 
   Future<void> playChunk(Uint8List pcm16) async {
+    if (!_playerOpen) return;
     if (!_isPlaying) await startPlayback();
     await _player.feedUint8FromStream(pcm16);
   }

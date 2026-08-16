@@ -39,7 +39,31 @@ The tools Gemini can call are declared in
 `lib/models/tool_definitions.dart`: `take_screenshot`, `move_mouse`,
 `click`, `drag`, `type_text`, `press_key`, `scroll`.
 
-## Setup
+## Testing in GitHub Codespaces
+
+This repo includes a `.devcontainer` so you can try the app without a
+local Flutter install:
+
+1. On GitHub, open **Code → Codespaces → Create codespace on
+   `claude/flutter-gemini-voice-screen-control-7wmhny`**.
+2. Wait for `postCreateCommand` to finish — it installs the Flutter SDK,
+   Linux desktop build tooling, and `xdotool`, then runs `flutter pub get`.
+3. Open the forwarded port **6080** (noVNC) in your browser — that's a
+   real virtual desktop running inside the codespace, so `xdotool` has
+   an actual screen to move the mouse and click on.
+4. In the codespace terminal:
+   ```
+   flutter run -d linux --dart-define=GEMINI_API_KEY=your_key_here
+   ```
+   The app window will appear inside the noVNC desktop tab.
+
+Codespaces gives you a full X11 session, so mouse/click/screenshot tools
+genuinely work end-to-end there — it's not just a headless build check.
+Microphone capture, however, has no hardware to attach to in a container,
+so voice input won't work in Codespaces; use the "Type instead of
+talking..." box in the UI to drive a session instead.
+
+## Setup (local machine)
 
 1. Scaffold the native platform folders (not checked into this repo —
    see `.gitignore`):

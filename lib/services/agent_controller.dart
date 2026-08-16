@@ -45,12 +45,34 @@ class AgentController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _audio.init();
+      var audioAvailable = true;
+      try {
+        await _audio.init();
+      } catch (e) {
+        audioAvailable = false;
+        _addMessage(
+          ChatRole.system,
+          'Microphone/speaker unavailable ($e) - continuing in '
+          'text-only mode.',
+        );
+      }
+
       _wireLiveServiceEvents();
       await _live.connect();
 
-      _subs.add(_audio.micStream.listen(_live.sendAudioChunk));
-      await _audio.startListening();
+      if (audioAvailable) {
+        try {
+          _subs.add(_audio.micStream.listen(_live.sendAudioChunk));
+          await _audio.startListening();
+        } catch (e) {
+          audioAvailable = false;
+          _addMessage(
+            ChatRole.system,
+            'Could not start microphone capture ($e) - continuing in '
+            'text-only mode.',
+          );
+        }
+      }
 
       _screenshotTimer = Timer.periodic(
         AppConfig.screenshotInterval,
@@ -59,7 +81,10 @@ class AgentController extends ChangeNotifier {
       await _pushScreenshot();
 
       state = SessionState.live;
-      _addMessage(ChatRole.system, 'Session started. Listening...');
+      _addMessage(
+        ChatRole.system,
+        audioAvailable ? 'Session started. Listening...' : 'Session started.',
+      );
     } catch (e) {
       state = SessionState.error;
       lastError = e.toString();
