@@ -10,6 +10,11 @@ import 'dart:io';
 ///              "System Events" for keyboard
 ///   - Windows: PowerShell + a small inline C# shim over user32.dll
 class SystemControlService {
+  /// The real-screen coordinates last passed to moveMouse/click/drag, so
+  /// a screenshot can mark exactly where the cursor should now be - see
+  /// AgentController, which draws this position onto every capture.
+  ({int x, int y})? lastMousePosition;
+
   /// The screen size in whatever coordinate space moveMouse/click/drag
   /// actually operate in - deliberately queried through the *same* tool
   /// used for those calls (not a separate plugin like screen_retriever),
@@ -60,6 +65,7 @@ class SystemControlService {
     } else {
       throw UnsupportedError('Mouse control is not supported on this platform.');
     }
+    lastMousePosition = (x: x, y: y);
   }
 
   Future<void> click({
@@ -128,6 +134,7 @@ class SystemControlService {
     } else {
       throw UnsupportedError('Mouse control is not supported on this platform.');
     }
+    lastMousePosition = (x: endX, y: endY);
   }
 
   Future<void> typeText(String text) async {

@@ -205,6 +205,8 @@ class AgentController extends ChangeNotifier {
       final shot = await _screen.captureJpeg(
         screenWidth: _realScreenSize?.width,
         screenHeight: _realScreenSize?.height,
+        cursorX: _system.lastMousePosition?.x,
+        cursorY: _system.lastMousePosition?.y,
       );
       _live.sendImage(shot.bytes);
     } catch (e) {
@@ -240,6 +242,8 @@ class AgentController extends ChangeNotifier {
           final shot = await _screen.captureJpeg(
             screenWidth: _realScreenSize?.width,
             screenHeight: _realScreenSize?.height,
+            cursorX: _system.lastMousePosition?.x,
+            cursorY: _system.lastMousePosition?.y,
           );
           _live.sendImage(shot.bytes);
           result = {'result': 'screenshot captured and sent'};

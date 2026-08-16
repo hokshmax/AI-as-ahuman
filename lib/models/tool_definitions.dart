@@ -11,8 +11,13 @@ class ToolDefinitions {
       'name': 'take_screenshot',
       'description':
           'Capture the current screen so you can see exactly what the '
-          'user sees before deciding on the next action. Call this '
-          'whenever your mental picture of the screen might be stale.',
+          'user sees before deciding on the next action. If the cursor '
+          'has moved since the last screenshot, its current position is '
+          'marked with a cyan crosshair labeled "CURSOR (x,y)" - use '
+          'this to verify move_mouse actually landed where you intended '
+          'before clicking. Call this whenever your mental picture of '
+          'the screen might be stale, and always after a move_mouse '
+          'whose accuracy you need to confirm.',
       'parameters': {
         'type': 'OBJECT',
         'properties': <String, dynamic>{},
@@ -174,14 +179,20 @@ Rules:
   easy to misjudge. Use the coordinate grid carefully for these: find
   the gridlines closest to the target on both axes and interpolate
   between their labels rather than eyeballing a position.
-- The cursor itself is not visible in screenshots, so you can't check
-  your aim after moving, only after clicking. Always take_screenshot
-  again right after clicking to confirm the expected change actually
-  happened (a menu opened, an app launched, a checkbox toggled). If it
-  didn't, or the WRONG thing happened (e.g. a different app opened than
-  intended), don't just retry blindly - undo it first (close/quit the
-  wrong app or menu) so you're not stacking mistakes, then retry with a
-  corrected position or approach.
+- For anything small or uncertain, act the way a person would: move
+  the cursor toward your target first with move_mouse, then
+  take_screenshot to actually look at where it landed - a cyan
+  crosshair marked "CURSOR (x,y)" shows you exactly where it is. If
+  it's not on the target yet, move_mouse again to correct it and check
+  again. Only click once the crosshair is confirmed on target. Don't
+  skip straight to clicking on a single blind guess for anything
+  small - verify the cursor position first.
+- After clicking, take_screenshot again to confirm the expected change
+  actually happened (a menu opened, an app launched, a checkbox
+  toggled). If it didn't, or the WRONG thing happened (e.g. a different
+  app opened than intended), don't just retry blindly - undo it first
+  (close/quit the wrong app or menu) so you're not stacking mistakes,
+  then retry with a corrected position or approach.
 - Never perform destructive actions (deleting files, submitting
   payments, sending messages, changing security settings) without
   confirming with the user first, out loud.

@@ -105,18 +105,30 @@ The tools Gemini can call are declared in
 `lib/models/tool_definitions.dart`: `take_screenshot`, `move_mouse`,
 `click`, `drag`, `type_text`, `press_key`, `scroll`.
 
-### Coordinate grid overlay
+### Coordinate grid + cursor marker
 
 Testing showed the biggest source of misplaced clicks wasn't a
 coordinate bug (screen size, image mirroring, and the click execution
 were all verified correct) - it's that estimating a raw pixel position
 with nothing to anchor against is genuinely hard for the model, even
-for moderately-sized targets. Every screenshot
-(`ScreenCaptureService._drawCoordinateGrid`) has a magenta grid drawn
-over it with each line labeled in real screen coordinates, so Gemini
-can read off nearby labels and interpolate an exact position instead of
-estimating blind. The system prompt explains this is a reference
-overlay, not part of the actual UI.
+for moderately-sized targets, and it had no way to check whether a
+move_mouse actually landed correctly before committing to a click.
+Every screenshot now carries two overlays
+(`ScreenCaptureService._drawCoordinateGrid` /
+`_drawCursorMarker`, both purely visual aids drawn by the app, not part
+of the real screen):
+
+- A magenta grid, each line labeled with its real screen coordinate,
+  so Gemini can read off nearby labels and interpolate an exact
+  position instead of guessing blind.
+- A cyan crosshair at `SystemControlService.lastMousePosition` (the
+  real coordinates last given to moveMouse/click/drag), labeled
+  `CURSOR (x,y)`. The system prompt tells Gemini to work the way a
+  person does for anything small or uncertain: move_mouse toward the
+  target, take_screenshot to see the crosshair and check whether it's
+  actually on target, correct with another move_mouse if not, and only
+  click once it's confirmed - rather than committing to a single blind
+  guess.
 
 ## Testing in GitHub Codespaces
 

@@ -39,9 +39,20 @@ class ScreenCaptureService {
   /// gridline labels instead of estimating raw pixel positions from
   /// scratch - testing showed unaided estimates land wildly off on
   /// anything but the largest, most obvious targets.
+  ///
+  /// When cursorX/cursorY are also passed (the real-screen coordinates
+  /// last given to SystemControlService.moveMouse/click/drag), a marker
+  /// is drawn there too - the actual OS cursor isn't reliably visible in
+  /// captures, so this gives Gemini a real, verifiable answer to "where
+  /// is the cursor right now" instead of it having to assume its last
+  /// move landed correctly. This is what lets it work the way a person
+  /// does: move, look, check whether the cursor is actually on target,
+  /// nudge and recheck if not, only then click.
   Future<({Uint8List bytes, int width, int height})> captureJpeg({
     int? screenWidth,
     int? screenHeight,
+    int? cursorX,
+    int? cursorY,
   }) async {
     final dir = await getTemporaryDirectory();
     final path = '${dir.path}/screenshot_${_uuid.v4()}.png';
@@ -82,6 +93,16 @@ class ScreenCaptureService {
         realBottom: screenHeight,
         step: 100,
       );
+
+      if (cursorX != null && cursorY != null) {
+        _drawCursorMarker(
+          resized,
+          realX: cursorX,
+          realY: cursorY,
+          realWidth: screenWidth,
+          realHeight: screenHeight,
+        );
+      }
     }
 
     final jpegBytes = Uint8List.fromList(
@@ -128,6 +149,34 @@ class ScreenCaptureService {
       img.drawLine(image, x1: 0, y1: py, x2: image.width - 1, y2: py, color: color);
       img.drawString(image, '$realY', font: img.arial14, x: 2, y: py + 2, color: color);
     }
+  }
+
+  /// Marks where the cursor actually is, mapped from real screen
+  /// coordinates into image pixels - a bright cyan crosshair, distinct
+  /// from the grid's magenta, with its real coordinates labeled next to
+  /// it so there's no ambiguity about exactly where it's pointing.
+  void _drawCursorMarker(
+    img.Image image, {
+    required int realX,
+    required int realY,
+    required int realWidth,
+    required int realHeight,
+  }) {
+    final px = (realX / realWidth * image.width).round();
+    final py = (realY / realHeight * image.height).round();
+    final color = img.ColorRgb8(0, 255, 255);
+
+    img.drawCircle(image, x: px, y: py, radius: 10, color: color);
+    img.drawLine(image, x1: px - 14, y1: py, x2: px + 14, y2: py, color: color);
+    img.drawLine(image, x1: px, y1: py - 14, x2: px, y2: py + 14, color: color);
+    img.drawString(
+      image,
+      'CURSOR ($realX,$realY)',
+      font: img.arial14,
+      x: px + 12,
+      y: py + 12,
+      color: color,
+    );
   }
 
   /// Debug builds only: writes the exact bytes just sent to Gemini to
