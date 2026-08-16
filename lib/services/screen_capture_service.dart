@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_macos_permissions/flutter_macos_permissions.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
@@ -63,12 +64,28 @@ class ScreenCaptureService {
         ? img.copyResize(decoded, width: AppConfig.screenshotMaxWidth)
         : decoded;
 
-    return (
-      bytes: Uint8List.fromList(
-        img.encodeJpg(resized, quality: AppConfig.screenshotJpegQuality),
-      ),
-      width: resized.width,
-      height: resized.height,
+    final jpegBytes = Uint8List.fromList(
+      img.encodeJpg(resized, quality: AppConfig.screenshotJpegQuality),
     );
+
+    if (kDebugMode) {
+      await _saveDebugCopy(jpegBytes);
+    }
+
+    return (bytes: jpegBytes, width: resized.width, height: resized.height);
+  }
+
+  /// Debug builds only: writes the exact bytes just sent to Gemini to
+  /// the Desktop so they can be opened and visually checked (e.g. for
+  /// mirroring/orientation bugs that wouldn't show up in coordinate math).
+  Future<void> _saveDebugCopy(Uint8List jpegBytes) async {
+    try {
+      final home = Platform.environment['HOME'];
+      if (home == null) return;
+      final debugFile = File('$home/Desktop/ai_as_ahuman_last_screenshot.jpg');
+      await debugFile.writeAsBytes(jpegBytes);
+    } catch (_) {
+      // Diagnostic only - never let this break a real capture.
+    }
   }
 }
