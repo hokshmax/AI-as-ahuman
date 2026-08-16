@@ -35,7 +35,28 @@ class AgentController extends ChangeNotifier {
   SessionState state = SessionState.idle;
   String? lastError;
 
+  /// True while the user is holding the talk button. Automatic
+  /// server-side voice detection is disabled (see GeminiLiveService's
+  /// setup message), so mic audio is only ever forwarded during this
+  /// window - otherwise Gemini's own playback echoing into an unmuted
+  /// mic gets misread as the user interrupting it.
+  bool isTalking = false;
+
   final List<StreamSubscription<dynamic>> _subs = [];
+
+  void startTalking() {
+    if (state != SessionState.live || isTalking) return;
+    isTalking = true;
+    _live.sendActivityStart();
+    notifyListeners();
+  }
+
+  void stopTalking() {
+    if (!isTalking) return;
+    isTalking = false;
+    _live.sendActivityEnd();
+    notifyListeners();
+  }
 
   Future<void> start() async {
     if (state == SessionState.connecting || state == SessionState.live) return;
@@ -69,7 +90,9 @@ class AgentController extends ChangeNotifier {
 
       if (audioAvailable) {
         try {
-          _subs.add(_audio.micStream.listen(_live.sendAudioChunk));
+          _subs.add(_audio.micStream.listen((chunk) {
+            if (isTalking) _live.sendAudioChunk(chunk);
+          }));
           await _audio.startListening();
         } catch (e, st) {
           audioAvailable = false;
@@ -113,6 +136,7 @@ class AgentController extends ChangeNotifier {
   }
 
   Future<void> stop() async {
+    isTalking = false;
     for (final s in _subs) {
       await s.cancel();
     }

@@ -22,7 +22,8 @@ speaker ◀──PCM16── (audio out)                         │
   the Gemini Live ("BidiGenerateContent") WebSocket protocol: it sends
   the session setup (model, system instruction, tool declarations),
   streams mic audio and screenshots in, and receives audio, text, and
-  `toolCall` messages back.
+  `toolCall` messages back. Automatic (server-side) voice activity
+  detection is disabled in the setup - see "Push-to-talk" below.
 - **`AudioService`** captures the microphone (`record`, streaming
   PCM16) and plays Gemini's spoken replies back (`mp_audio_stream`,
   which speaks Float32 - `AudioService` converts each incoming PCM16
@@ -39,6 +40,27 @@ speaker ◀──PCM16── (audio out)                         │
   was adding a growing image to every turn and made responses slow), and
   dispatches each `toolCall` to `SystemControlService`, reporting the
   result back to Gemini so it can decide what to do next.
+
+### Push-to-talk
+
+The app uses push-to-talk instead of always-on listening: hold the
+"Hold to talk" button while you speak, release it when you're done.
+Mic audio is only forwarded while held (`AgentController.isTalking`
+gates it), and the button press sends explicit
+`realtimeInput.activityStart` / `activityEnd` signals so Gemini knows
+exactly when your turn starts and ends.
+
+This isn't just a UX choice — it fixes a real bug you'll otherwise hit
+constantly: with the Mac's built-in speaker and mic (no headphones),
+Gemini's own voice leaks back into the mic, and the Live API's
+automatic voice-activity detection reads that echo as you interrupting
+it, cutting Gemini off mid-sentence. Disabling automatic detection and
+gating the mic behind a button means Gemini's own playback is never
+audio that gets sent back to it. If you're using headphones and want
+always-on listening instead, that's a matter of re-enabling
+`automaticActivityDetection` in `gemini_live_service.dart`'s setup
+message and always forwarding `micStream` in `AgentController.start()`
+instead of gating on `isTalking`.
 
 The tools Gemini can call are declared in
 `lib/models/tool_definitions.dart`: `take_screenshot`, `move_mouse`,
