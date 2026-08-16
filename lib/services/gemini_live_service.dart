@@ -78,8 +78,15 @@ class GeminiLiveService {
       _handleMessage,
       onDone: () {
         _setupTimeoutTimer?.cancel();
+        final wasComplete = _setupComplete;
         _setupComplete = false;
         _connectionStateController.add(false);
+        if (wasComplete) {
+          _errorController.add(
+            'Connection closed by server (code=${_channel?.closeCode}, '
+            'reason=${_channel?.closeReason}).',
+          );
+        }
       },
       onError: (Object error) {
         _setupTimeoutTimer?.cancel();

@@ -89,6 +89,16 @@ class AgentController extends ChangeNotifier {
       );
       await _pushScreenshot();
 
+      if (!_live.isConnected) {
+        // The socket already died (e.g. closed right after setup) before
+        // we got here - don't lie and say the session is live.
+        state = SessionState.error;
+        lastError = 'Connection dropped before the session could start.';
+        _addMessage(ChatRole.system, lastError!);
+        notifyListeners();
+        return;
+      }
+
       state = SessionState.live;
       _addMessage(
         ChatRole.system,
