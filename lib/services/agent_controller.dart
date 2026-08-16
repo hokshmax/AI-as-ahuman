@@ -217,14 +217,15 @@ class AgentController extends ChangeNotifier {
   /// the cursor flying off-screen) and logs for diagnosis.
   (int, int) _toScreenCoords(int x, int y) {
     final real = _realScreenSize;
-    if (real == null) return (x, y);
-    final clamped = (x.clamp(0, real.width), y.clamp(0, real.height));
-    if (clamped != (x, y)) {
-      debugPrint(
-        '[AgentController] _toScreenCoords: ($x, $y) out of real=$real '
-        'bounds, clamped to $clamped',
-      );
+    if (real == null) {
+      debugPrint('[AgentController] _toScreenCoords: no real size yet, ($x, $y) passed through');
+      return (x, y);
     }
+    final clamped = (x.clamp(0, real.width), y.clamp(0, real.height));
+    debugPrint(
+      '[AgentController] _toScreenCoords: gemini gave ($x, $y), real screen '
+      'is $real, using $clamped',
+    );
     return clamped;
   }
 
