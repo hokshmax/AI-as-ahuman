@@ -37,7 +37,9 @@ class SystemControlService {
       final [left, top, right, bottom] = bounds;
       return (width: right - left, height: bottom - top);
     } else if (Platform.isWindows) {
-      final result = await _powershell('''
+      // Raw string: this PowerShell uses $b, which Dart would otherwise
+      // try to interpolate as a (nonexistent) Dart variable named "b".
+      final result = await _powershell(r'''
         Add-Type -AssemblyName System.Windows.Forms
         $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
         Write-Output "$($b.Width) $($b.Height)"
