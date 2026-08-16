@@ -133,11 +133,12 @@ talking..." box in the UI to drive a session instead.
 ### If the app connects but Gemini never replies
 
 Google renames and rotates Live API model IDs fairly often, and access
-varies by API key/region. If the session opens (status shows "Live")
-but you never get `"Gemini session setup complete."` in the transcript,
-you'll now see a clear timeout error after 10s instead of silence — it
-means `AppConfig.geminiModel`'s default isn't valid for your key. Try
-overriding it:
+varies by API key/region. The default here is currently
+`gemini-3.1-flash-live-preview` (Gemini 3.1 Flash Live). If the session
+opens (status shows "Live") but you never get `"Gemini session setup
+complete."` in the transcript, you'll see a clear timeout error after
+10s instead of silence — it means that default isn't valid for your
+key. Override it:
 ```
 flutter run -d macos --dart-define=GEMINI_API_KEY=your_key_here \
   --dart-define=GEMINI_MODEL=models/gemini-live-2.5-flash-preview

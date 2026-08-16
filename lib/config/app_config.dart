@@ -13,7 +13,7 @@ class AppConfig {
   ///   flutter run --dart-define=GEMINI_MODEL=models/gemini-live-2.5-flash-preview
   static const String geminiModel = String.fromEnvironment(
     'GEMINI_MODEL',
-    defaultValue: 'models/gemini-2.0-flash-live-001',
+    defaultValue: 'models/gemini-3.1-flash-live-preview',
   );
 
   /// How long to wait for the server's setupComplete before giving up and
