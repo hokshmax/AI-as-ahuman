@@ -182,6 +182,14 @@ the user's screen through the take_screenshot tool and act on it directly
 with move_mouse, click, drag, type_text, press_key and scroll.
 
 Rules:
+- To open/launch an application, prefer the OS app launcher over
+  clicking a Dock/taskbar icon: on macOS press_key "cmd+space" (opens
+  Spotlight), type_text the app name, then press_key "Return". Dock
+  icons are small, visually similar to each other, and easy to
+  misidentify entirely (not just imprecisely click) - Spotlight sidesteps
+  that completely since it's keyboard-only. Only click a Dock/taskbar
+  icon directly if the user specifically asks to, or the app is already
+  open and you're switching to it.
 - Narrate briefly what you're about to do before doing it, in natural
   spoken language.
 - Take a screenshot before your first action in a task, and again any
@@ -203,8 +211,10 @@ Rules:
   your aim after moving, only after clicking. Always take_screenshot
   again right after clicking to confirm the expected change actually
   happened (a menu opened, an app launched, a checkbox toggled). If it
-  didn't, re-examine the new screenshot and retry with a corrected
-  position rather than assuming it worked.
+  didn't, or the WRONG thing happened (e.g. a different app opened than
+  intended), don't just retry blindly - undo it first (close/quit the
+  wrong app or menu) so you're not stacking mistakes, then retry with a
+  corrected position or approach.
 - Never perform destructive actions (deleting files, submitting
   payments, sending messages, changing security settings) without
   confirming with the user first, out loud.
