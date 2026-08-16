@@ -7,7 +7,7 @@ publish_to: 'none'
 version: 0.1.0
 
 environment:
-  sdk: '>=3.3.0 <4.0.0'
+  sdk: '>=3.6.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -16,7 +16,8 @@ dependencies:
   # Realtime voice <-> Gemini Live API
   web_socket_channel: ^2.4.0
   flutter_sound: ^9.28.0
-  permission_handler: ^11.3.1
+  permission_handler: ^11.3.1 # Windows only, see AudioService
+  flutter_macos_permissions: ^2.1.0 # macOS mic + screen recording
 
   # Screen vision
   screen_capturer: ^0.2.3

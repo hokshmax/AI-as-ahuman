@@ -57,6 +57,12 @@ class AgentController extends ChangeNotifier {
         );
       }
 
+      try {
+        await _screen.ensurePermission();
+      } catch (e) {
+        _addMessage(ChatRole.system, 'Screen capture unavailable: $e');
+      }
+
       _wireLiveServiceEvents();
       await _live.connect();
 

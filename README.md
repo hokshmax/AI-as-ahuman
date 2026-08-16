@@ -104,19 +104,23 @@ talking..." box in the UI to drive a session instead.
    <string>AI as a Human needs the microphone to talk to Gemini.</string>
    ```
 
-   The first time the app actually takes a screenshot, macOS will
-   prompt for **Screen Recording** permission (or silently fail until
-   you grant it yourself under **System Settings → Privacy & Security →
-   Screen Recording** and relaunch the app). The first click/keystroke
-   may similarly need **Accessibility** permission granted the same way.
+   Mic and Screen Recording permission are requested explicitly on
+   session start via the `flutter_macos_permissions` package (see
+   `AudioService.init()` and `ScreenCaptureService.ensurePermission()`)
+   — macOS will show its native consent dialogs the first time you
+   click "Start voice session". If you don't get a dialog and capture
+   still fails, permission may have been silently denied already; check
+   **System Settings → Privacy & Security → Microphone** and **→ Screen
+   Recording**, enable the app there, and relaunch it. The first
+   click/keystroke may similarly need **Accessibility** permission
+   granted the same way (not covered by this package — macOS prompts
+   for it the first time `cliclick`/`osascript` actually runs).
 
    Note: `permission_handler` only ships implementations for Android,
-   iOS, web and Windows — there's no macOS or Linux backend, so
-   `AudioService` skips calling it there entirely (see the
-   `Platform.isWindows` check in `audio_service.dart`). On macOS the
-   mic consent dialog appears automatically the first time
-   `flutter_sound` opens the recorder, driven by the
-   `NSMicrophoneUsageDescription` entry above — no extra plugin needed.
+   iOS, web and Windows — there's no macOS or Linux backend, so it's
+   only used on Windows (see the `Platform.isWindows` check in
+   `audio_service.dart`); macOS uses `flutter_macos_permissions`
+   instead, and Linux has no permission model to request against.
 
    If you add any other plugin to `pubspec.yaml` *after* already running
    `flutter create`, do a clean rebuild so CocoaPods links it in:

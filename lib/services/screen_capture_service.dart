@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter_macos_permissions/flutter_macos_permissions.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:screen_capturer/screen_capturer.dart';
@@ -13,6 +14,21 @@ import '../config/app_config.dart';
 /// to stream to Gemini quickly and repeatedly.
 class ScreenCaptureService {
   final _uuid = const Uuid();
+
+  /// macOS requires explicit Screen Recording consent before any capture
+  /// will actually produce an image - screen_capturer doesn't trigger that
+  /// prompt itself, so this asks for it up front. No-op elsewhere.
+  Future<void> ensurePermission() async {
+    if (!Platform.isMacOS) return;
+    final status = await FlutterMacosPermissions.requestScreenRecording();
+    if (!status.isGranted) {
+      throw StateError(
+        'Screen Recording permission denied. Grant it under System '
+        'Settings -> Privacy & Security -> Screen Recording and restart '
+        'the app.',
+      );
+    }
+  }
 
   Future<Uint8List> captureJpeg() async {
     final dir = await getTemporaryDirectory();

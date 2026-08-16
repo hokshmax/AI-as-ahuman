@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter_macos_permissions/flutter_macos_permissions.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -26,16 +27,22 @@ class AudioService {
   Stream<Uint8List> get micStream => _micController.stream;
 
   Future<void> init() async {
-    // permission_handler only implements macOS/Linux on Android, iOS, web
-    // and Windows - there's no macOS or Linux backend, so calling it there
-    // throws MissingPluginException. On those platforms the OS shows its
-    // own microphone consent prompt automatically the first time
-    // flutter_sound actually opens the recorder, driven by
-    // NSMicrophoneUsageDescription in Info.plist - no extra request needed.
+    // permission_handler only implements Android, iOS, web and Windows -
+    // there's no macOS or Linux backend, so calling it there throws
+    // MissingPluginException. macOS gets its own explicit request below;
+    // on Linux there's no permission model to request against at all.
     if (Platform.isWindows) {
       final status = await Permission.microphone.request();
       if (!status.isGranted) {
         throw StateError('Microphone permission denied.');
+      }
+    } else if (Platform.isMacOS) {
+      final status = await FlutterMacosPermissions.requestMicrophone();
+      if (!status.isGranted) {
+        throw StateError(
+          'Microphone permission denied. Grant it under System Settings '
+          '-> Privacy & Security -> Microphone and restart the app.',
+        );
       }
     }
     await _recorder.openRecorder();
