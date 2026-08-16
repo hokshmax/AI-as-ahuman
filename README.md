@@ -69,18 +69,22 @@ guard around `_live.sendAudioChunk` in `AgentController.start()`) if
 you'd rather have true barge-in and are on headphones where the echo
 problem doesn't apply.
 
-### Coordinate mapping (screenshot pixels -> real screen)
+### Coordinate mapping
 
-Gemini's `move_mouse`/`click`/`drag` coordinates come back **normalized
-to a 0-1000 scale relative to the screenshot**, not raw pixels -
-confirmed by testing (`raw=(416, 955)` for a 768x480 screenshot; 955 >
-480, which only makes sense on a 0-1000 scale). This is Gemini's
-standard, documented convention for all spatial/bounding-box reasoning
-about images, regardless of the image's actual pixel dimensions, and
-the tool descriptions in `tool_definitions.dart` now say so explicitly.
-`AgentController._toScreenCoords()` divides by 1000 and multiplies by
-the real screen size directly - no need to track the screenshot's own
-pixel dimensions at all.
+Testing showed Gemini's `move_mouse`/`click`/`drag` coordinates aren't
+reliably in any one fixed convention relative to the screenshot image -
+neither raw screenshot pixels nor a consistent 0-1000 normalization
+held up across calls. Rather than keep guessing which convention it's
+implicitly using, the app now tells Gemini the real screen resolution
+directly and asks it to give coordinates in that exact space:
+`AgentController` fetches the real screen size *before* connecting and
+passes it into `GeminiLiveService.connect(screenWidth:, screenHeight:)`,
+which appends `ToolDefinitions.screenResolutionInstruction(w, h)` to
+the system instruction - explicitly stating the exact pixel resolution
+and asking for coordinates proportional to that, regardless of the
+screenshot image's own dimensions. `_toScreenCoords()` now just clamps
+to the real screen bounds as a safety net and logs anything it had to
+clamp, rather than applying any scaling of its own.
 
 That real screen size is deliberately fetched via
 `SystemControlService.screenSize()` - which queries it through the

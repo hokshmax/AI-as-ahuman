@@ -82,7 +82,10 @@ class AgentController extends ChangeNotifier {
       }
 
       _wireLiveServiceEvents();
-      await _live.connect();
+      await _live.connect(
+        screenWidth: _realScreenSize?.width,
+        screenHeight: _realScreenSize?.height,
+      );
 
       if (audioAvailable) {
         try {
@@ -206,31 +209,23 @@ class AgentController extends ChangeNotifier {
     }
   }
 
-  /// Gemini's vision grounding always reports coordinates on a 0-1000
-  /// scale normalized to the image, regardless of the image's actual
-  /// pixel dimensions (documented Gemini behavior) - not raw pixels
-  /// within the screenshot, despite what the tool description used to
-  /// imply. Scale straight from that normalized space to the real
-  /// screen. Falls back to passing coordinates through unscaled if the
-  /// real screen size isn't known yet.
+  /// Gemini is told the real screen resolution directly (see
+  /// GeminiLiveService.connect() / ToolDefinitions.screenResolutionInstruction)
+  /// and asked to give move_mouse/click/drag coordinates in that same
+  /// space, so no scaling is needed here - this just clamps to the real
+  /// screen bounds as a safety net (keeps a wild coordinate from sending
+  /// the cursor flying off-screen) and logs for diagnosis.
   (int, int) _toScreenCoords(int x, int y) {
     final real = _realScreenSize;
-    if (real == null) {
+    if (real == null) return (x, y);
+    final clamped = (x.clamp(0, real.width), y.clamp(0, real.height));
+    if (clamped != (x, y)) {
       debugPrint(
-        '[AgentController] _toScreenCoords: real screen size unknown, '
-        'passing ($x, $y) through unscaled',
+        '[AgentController] _toScreenCoords: ($x, $y) out of real=$real '
+        'bounds, clamped to $clamped',
       );
-      return (x, y);
     }
-    final scaled = (
-      (x / 1000 * real.width).round(),
-      (y / 1000 * real.height).round(),
-    );
-    debugPrint(
-      '[AgentController] _toScreenCoords: raw=($x, $y)/1000 real=$real '
-      '-> scaled=$scaled',
-    );
-    return scaled;
+    return clamped;
   }
 
   Future<void> _handleFunctionCall(GeminiFunctionCall call) async {

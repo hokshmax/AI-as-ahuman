@@ -22,26 +22,28 @@ class ToolDefinitions {
       'name': 'move_mouse',
       'description':
           'Move the mouse cursor to an absolute position on screen. '
-          'Coordinates are normalized to a 0-1000 scale relative to the '
-          'most recent screenshot you were shown (0,0 = its top-left '
-          'corner, 1000,1000 = its bottom-right corner) - the same '
-          'convention you already use for bounding boxes/spatial '
-          'reasoning about images. They are automatically converted to '
-          'real screen coordinates.',
+          'Coordinates are real screen pixel coordinates - see the '
+          'screen resolution stated in your system instructions - not '
+          'normalized and not relative to the screenshot image size. '
+          'Work out the position proportionally: if something appears '
+          'at roughly the horizontal/vertical midpoint of the '
+          'screenshot, its x/y are roughly the screen width/height '
+          'midpoints too, regardless of the screenshot image\'s own '
+          'pixel dimensions.',
       'parameters': {
         'type': 'OBJECT',
         'properties': {
           'x': {
             'type': 'INTEGER',
             'description':
-                'Horizontal position, 0-1000 normalized to the last '
-                'screenshot width. 0 = left edge, 1000 = right edge.',
+                'Horizontal pixel coordinate on the real screen, 0 = '
+                'left edge.',
           },
           'y': {
             'type': 'INTEGER',
             'description':
-                'Vertical position, 0-1000 normalized to the last '
-                'screenshot height. 0 = top edge, 1000 = bottom edge.',
+                'Vertical pixel coordinate on the real screen, 0 = top '
+                'edge.',
           },
         },
         'required': ['x', 'y'],
@@ -58,14 +60,12 @@ class ToolDefinitions {
           'x': {
             'type': 'INTEGER',
             'description':
-                'Optional X to move to first, 0-1000 normalized to the '
-                'last screenshot width.',
+                'Optional X to move to first, real screen pixel coordinate.',
           },
           'y': {
             'type': 'INTEGER',
             'description':
-                'Optional Y to move to first, 0-1000 normalized to the '
-                'last screenshot height.',
+                'Optional Y to move to first, real screen pixel coordinate.',
           },
           'button': {
             'type': 'STRING',
@@ -84,8 +84,8 @@ class ToolDefinitions {
       'name': 'drag',
       'description': 'Press the mouse button at one point and release it '
           'at another, e.g. to drag a slider or select text. All '
-          'coordinates are 0-1000 normalized to the last screenshot, '
-          'same as move_mouse.',
+          'coordinates are real screen pixel coordinates, same as '
+          'move_mouse.',
       'parameters': {
         'type': 'OBJECT',
         'properties': {
@@ -160,5 +160,20 @@ Rules:
   confirming with the user first, out loud.
 - If the screen doesn't match what you expected, stop and ask the user
   rather than guessing.
+''';
+
+  /// Appended to the system instruction once the real screen size is
+  /// known (see AgentController.start(), which fetches it before
+  /// connecting). Telling Gemini the exact target resolution and asking
+  /// for direct pixel coordinates in that space removes any ambiguity
+  /// about which normalization convention it should use.
+  static String screenResolutionInstruction(int width, int height) => '''
+The screen you are controlling is exactly ${width}x$height pixels.
+Every screenshot you're shown, regardless of its own image dimensions,
+represents this same ${width}x$height screen. When calling move_mouse,
+click or drag, always give x/y as direct pixel coordinates on this
+${width}x$height screen - work out the position proportionally from
+where you see the target in the screenshot (e.g. a target at the
+screenshot's horizontal midpoint has x roughly ${width ~/ 2}).
 ''';
 }

@@ -62,7 +62,7 @@ class GeminiLiveService {
 
   bool get isConnected => _setupComplete;
 
-  Future<void> connect() async {
+  Future<void> connect({int? screenWidth, int? screenHeight}) async {
     if (_apiKey.isEmpty) {
       throw StateError(
         'Missing Gemini API key. Run with '
@@ -130,7 +130,12 @@ class GeminiLiveService {
         },
         'systemInstruction': {
           'parts': [
-            {'text': ToolDefinitions.systemInstruction},
+            {
+              'text': screenWidth != null && screenHeight != null
+                  ? '${ToolDefinitions.systemInstruction}\n\n'
+                      '${ToolDefinitions.screenResolutionInstruction(screenWidth, screenHeight)}'
+                  : ToolDefinitions.systemInstruction,
+            },
           ],
         },
         'tools': [
