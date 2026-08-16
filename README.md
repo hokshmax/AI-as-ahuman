@@ -23,8 +23,10 @@ speaker ◀──PCM16── (audio out)                         │
   the session setup (model, system instruction, tool declarations),
   streams mic audio and screenshots in, and receives audio, text, and
   `toolCall` messages back.
-- **`AudioService`** captures the microphone and plays Gemini's spoken
-  replies as raw 16-bit PCM, using `flutter_sound`.
+- **`AudioService`** captures the microphone (`record`, streaming
+  PCM16) and plays Gemini's spoken replies back (`mp_audio_stream`,
+  which speaks Float32 - `AudioService` converts each incoming PCM16
+  chunk before pushing it).
 - **`ScreenCaptureService`** grabs the screen with `screen_capturer`,
   downsizes and JPEG-encodes it so round trips stay fast.
 - **`SystemControlService`** turns tool calls into real input events. It
@@ -104,23 +106,21 @@ talking..." box in the UI to drive a session instead.
    <string>AI as a Human needs the microphone to talk to Gemini.</string>
    ```
 
-   Mic and Screen Recording permission are requested explicitly on
-   session start via the `flutter_macos_permissions` package (see
-   `AudioService.init()` and `ScreenCaptureService.ensurePermission()`)
-   — macOS will show its native consent dialogs the first time you
-   click "Start voice session". If you don't get a dialog and capture
-   still fails, permission may have been silently denied already; check
-   **System Settings → Privacy & Security → Microphone** and **→ Screen
+   Mic permission is requested by the `record` package itself
+   (`AudioRecorder.hasPermission()` in `AudioService.init()`) — it
+   ships real implementations for every desktop platform, no separate
+   permission plugin needed. Screen Recording permission on macOS is
+   requested explicitly via `flutter_macos_permissions`
+   (`ScreenCaptureService.ensurePermission()`), since `screen_capturer`
+   doesn't trigger that consent dialog on its own. macOS will show its
+   native consent dialogs the first time you click "Start voice
+   session". If you don't get a dialog and capture still fails,
+   permission may have been silently denied already; check **System
+   Settings → Privacy & Security → Microphone** and **→ Screen
    Recording**, enable the app there, and relaunch it. The first
    click/keystroke may similarly need **Accessibility** permission
-   granted the same way (not covered by this package — macOS prompts
-   for it the first time `cliclick`/`osascript` actually runs).
-
-   Note: `permission_handler` only ships implementations for Android,
-   iOS, web and Windows — there's no macOS or Linux backend, so it's
-   only used on Windows (see the `Platform.isWindows` check in
-   `audio_service.dart`); macOS uses `flutter_macos_permissions`
-   instead, and Linux has no permission model to request against.
+   granted the same way (macOS prompts for it the first time
+   `cliclick`/`osascript` actually runs).
 
    If you add any other plugin to `pubspec.yaml` *after* already running
    `flutter create`, do a clean rebuild so CocoaPods links it in:

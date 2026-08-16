@@ -1,29 +1,26 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_macos_permissions/flutter_macos_permissions.dart';
-import 'package:flutter_sound/flutter_sound.dart';
-import 'package:logger/logger.dart' show Level;
-import 'package:permission_handler/permission_handler.dart';
+import 'package:mp_audio_stream/mp_audio_stream.dart';
+import 'package:record/record.dart';
 
 import '../config/app_config.dart';
 
 /// Wraps microphone capture and speaker playback of raw PCM16 audio,
 /// matching the formats the Gemini Live API expects.
+///
+/// Uses `record` for the mic (it ships real implementations for every
+/// desktop platform and requests its own permission) and
+/// `mp_audio_stream` for playback (also fully cross-platform, but only
+/// speaks Float32 samples, hence the PCM16 -> Float32 conversion below).
 class AudioService {
-  // Verbose logLevel makes flutter_sound print every native call it
-  // makes and every event it gets back, which is the only way to see
-  // *where* a recorder/player call is actually failing on-device.
-  final FlutterSoundRecorder _recorder = FlutterSoundRecorder(logLevel: Level.trace);
-  final FlutterSoundPlayer _player = FlutterSoundPlayer(logLevel: Level.trace);
+  final AudioRecorder _recorder = AudioRecorder();
+  final MpAudioStream _playback = getAudioStream();
 
-  StreamController<Uint8List>? _micStreamController;
-  bool _recorderOpen = false;
-  bool _playerOpen = false;
+  StreamSubscription<Uint8List>? _micSub;
+  bool _playbackReady = false;
   bool _isRecording = false;
-  bool _isPlaying = false;
 
   final _micController = StreamController<Uint8List>.broadcast();
 
@@ -32,106 +29,78 @@ class AudioService {
   Stream<Uint8List> get micStream => _micController.stream;
 
   Future<void> init() async {
-    debugPrint('[AudioService] init() start on ${Platform.operatingSystem}');
+    debugPrint('[AudioService] init() start');
 
-    // permission_handler only implements Android, iOS, web and Windows -
-    // there's no macOS or Linux backend, so calling it there throws
-    // MissingPluginException. macOS gets its own explicit request below;
-    // on Linux there's no permission model to request against at all.
-    if (Platform.isWindows) {
-      debugPrint('[AudioService] requesting mic permission via permission_handler');
-      final status = await Permission.microphone.request();
-      debugPrint('[AudioService] permission_handler mic status: $status');
-      if (!status.isGranted) {
-        throw StateError('Microphone permission denied.');
-      }
-    } else if (Platform.isMacOS) {
-      debugPrint('[AudioService] requesting mic permission via flutter_macos_permissions');
-      final status = await FlutterMacosPermissions.requestMicrophone();
-      debugPrint('[AudioService] flutter_macos_permissions mic status: $status');
-      if (!status.isGranted) {
-        throw StateError(
-          'Microphone permission denied. Grant it under System Settings '
-          '-> Privacy & Security -> Microphone and restart the app.',
-        );
-      }
+    final granted = await _recorder.hasPermission();
+    debugPrint('[AudioService] mic permission granted: $granted');
+    if (!granted) {
+      throw StateError('Microphone permission denied.');
     }
 
-    debugPrint('[AudioService] opening recorder...');
-    await _recorder.openRecorder();
-    debugPrint('[AudioService] recorder open.');
-
-    debugPrint('[AudioService] opening player...');
-    await _player.openPlayer();
-    debugPrint('[AudioService] player open.');
-
-    _recorderOpen = true;
-    _playerOpen = true;
-    await _player.setSubscriptionDuration(const Duration(milliseconds: 100));
+    _playback.init(channels: 1, sampleRate: AppConfig.outputSampleRate);
+    _playback.resume();
+    _playbackReady = true;
     debugPrint('[AudioService] init() complete.');
   }
 
   Future<void> startListening() async {
-    if (!_recorderOpen || _isRecording) return;
-
-    _micStreamController = StreamController<Uint8List>();
-    _micStreamController!.stream.listen((data) {
-      _micController.add(data);
-    });
+    if (_isRecording) return;
 
     debugPrint(
-      '[AudioService] starting recorder: pcm16, mono, '
+      '[AudioService] starting mic stream: pcm16, mono, '
       '${AppConfig.inputSampleRate}Hz',
     );
-    await _recorder.startRecorder(
-      toStream: _micStreamController!.sink,
-      codec: Codec.pcm16,
-      numChannels: 1,
-      sampleRate: AppConfig.inputSampleRate,
+    final stream = await _recorder.startStream(
+      RecordConfig(
+        encoder: AudioEncoder.pcm16bits,
+        sampleRate: AppConfig.inputSampleRate,
+        numChannels: 1,
+      ),
     );
-    debugPrint('[AudioService] recorder started.');
+    _micSub = stream.listen(_micController.add);
     _isRecording = true;
+    debugPrint('[AudioService] mic stream started.');
   }
 
   Future<void> stopListening() async {
     if (!_isRecording) return;
-    await _recorder.stopRecorder();
-    await _micStreamController?.close();
-    _micStreamController = null;
+    await _recorder.stop();
+    await _micSub?.cancel();
+    _micSub = null;
     _isRecording = false;
   }
 
-  Future<void> startPlayback() async {
-    if (!_playerOpen || _isPlaying) return;
-    await _player.startPlayerFromStream(
-      codec: Codec.pcm16,
-      numChannels: 1,
-      sampleRate: AppConfig.outputSampleRate,
-      interleaved: true,
-      bufferSize: 4096,
-    );
-    _isPlaying = true;
-  }
-
+  /// Converts Gemini's PCM16 (little-endian, mono) chunk to the Float32
+  /// samples mp_audio_stream expects and queues it for playback.
   Future<void> playChunk(Uint8List pcm16) async {
-    if (!_playerOpen) return;
-    if (!_isPlaying) await startPlayback();
-    await _player.feedUint8FromStream(pcm16);
+    if (!_playbackReady) return;
+    final byteData = ByteData.sublistView(pcm16);
+    final sampleCount = pcm16.length ~/ 2;
+    final samples = Float32List(sampleCount);
+    for (var i = 0; i < sampleCount; i++) {
+      samples[i] = byteData.getInt16(i * 2, Endian.little) / 32768.0;
+    }
+    _playback.push(samples);
   }
 
   /// Called when Gemini reports the user interrupted it: drop whatever
   /// audio is still queued so playback stops immediately.
   Future<void> flushPlayback() async {
-    if (!_isPlaying) return;
-    await _player.stopPlayer();
-    _isPlaying = false;
+    if (!_playbackReady) return;
+    // mp_audio_stream has no explicit "clear buffer" call - reinitializing
+    // is the pragmatic way to drop whatever's still queued.
+    _playback.uninit();
+    _playback.init(channels: 1, sampleRate: AppConfig.outputSampleRate);
+    _playback.resume();
   }
 
   Future<void> dispose() async {
     await stopListening();
-    await flushPlayback();
-    if (_recorderOpen) await _recorder.closeRecorder();
-    if (_playerOpen) await _player.closePlayer();
+    _recorder.dispose();
+    if (_playbackReady) {
+      _playback.uninit();
+      _playbackReady = false;
+    }
     await _micController.close();
   }
 }
