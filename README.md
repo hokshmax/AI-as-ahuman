@@ -71,11 +71,16 @@ problem doesn't apply.
 
 ### Coordinate mapping (screenshot pixels -> real screen)
 
-Gemini's `move_mouse`/`click`/`drag` coordinates are relative to the
-screenshot it was last shown, which is downscaled from the real screen
-(`AppConfig.screenshotMaxWidth`). `AgentController._toScreenCoords()`
-scales those back up using the ratio between the last screenshot's
-exact pixel size and the real screen size.
+Gemini's `move_mouse`/`click`/`drag` coordinates come back **normalized
+to a 0-1000 scale relative to the screenshot**, not raw pixels -
+confirmed by testing (`raw=(416, 955)` for a 768x480 screenshot; 955 >
+480, which only makes sense on a 0-1000 scale). This is Gemini's
+standard, documented convention for all spatial/bounding-box reasoning
+about images, regardless of the image's actual pixel dimensions, and
+the tool descriptions in `tool_definitions.dart` now say so explicitly.
+`AgentController._toScreenCoords()` divides by 1000 and multiplies by
+the real screen size directly - no need to track the screenshot's own
+pixel dimensions at all.
 
 That real screen size is deliberately fetched via
 `SystemControlService.screenSize()` - which queries it through the

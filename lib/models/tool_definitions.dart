@@ -22,25 +22,26 @@ class ToolDefinitions {
       'name': 'move_mouse',
       'description':
           'Move the mouse cursor to an absolute position on screen. '
-          'Coordinates are pixel positions within the most recent '
-          'screenshot you were shown (0,0 = its top-left corner) - they '
-          'are automatically converted to real screen coordinates, so '
-          'always measure against the screenshot image itself, not a '
-          'guess at physical screen resolution.',
+          'Coordinates are normalized to a 0-1000 scale relative to the '
+          'most recent screenshot you were shown (0,0 = its top-left '
+          'corner, 1000,1000 = its bottom-right corner) - the same '
+          'convention you already use for bounding boxes/spatial '
+          'reasoning about images. They are automatically converted to '
+          'real screen coordinates.',
       'parameters': {
         'type': 'OBJECT',
         'properties': {
           'x': {
             'type': 'INTEGER',
             'description':
-                'Horizontal pixel coordinate within the last screenshot, '
-                '0 = left edge.',
+                'Horizontal position, 0-1000 normalized to the last '
+                'screenshot width. 0 = left edge, 1000 = right edge.',
           },
           'y': {
             'type': 'INTEGER',
             'description':
-                'Vertical pixel coordinate within the last screenshot, '
-                '0 = top edge.',
+                'Vertical position, 0-1000 normalized to the last '
+                'screenshot height. 0 = top edge, 1000 = bottom edge.',
           },
         },
         'required': ['x', 'y'],
@@ -57,12 +58,14 @@ class ToolDefinitions {
           'x': {
             'type': 'INTEGER',
             'description':
-                'Optional X to move to first, in last-screenshot pixels.',
+                'Optional X to move to first, 0-1000 normalized to the '
+                'last screenshot width.',
           },
           'y': {
             'type': 'INTEGER',
             'description':
-                'Optional Y to move to first, in last-screenshot pixels.',
+                'Optional Y to move to first, 0-1000 normalized to the '
+                'last screenshot height.',
           },
           'button': {
             'type': 'STRING',
@@ -81,7 +84,8 @@ class ToolDefinitions {
       'name': 'drag',
       'description': 'Press the mouse button at one point and release it '
           'at another, e.g. to drag a slider or select text. All '
-          'coordinates are pixel positions within the last screenshot.',
+          'coordinates are 0-1000 normalized to the last screenshot, '
+          'same as move_mouse.',
       'parameters': {
         'type': 'OBJECT',
         'properties': {

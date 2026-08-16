@@ -39,12 +39,6 @@ class AgentController extends ChangeNotifier {
   /// mouse calls operate in. Fetched once at session start.
   ({int width, int height})? _realScreenSize;
 
-  /// Pixel dimensions of the last screenshot sent to Gemini - x/y in its
-  /// tool calls are relative to this image, not the real screen, so they
-  /// need scaling by (_realScreenSize / _lastScreenshotSize) before being
-  /// handed to SystemControlService.
-  ({int width, int height})? _lastScreenshotSize;
-
   /// True from the moment Gemini's reply audio starts until shortly
   /// after its turn ends. Mic audio is never forwarded during this
   /// window (see the micStream listener in start()) so its own
@@ -206,35 +200,35 @@ class AgentController extends ChangeNotifier {
   Future<void> _pushScreenshot() async {
     try {
       final shot = await _screen.captureJpeg();
-      _lastScreenshotSize = (width: shot.width, height: shot.height);
       _live.sendImage(shot.bytes);
     } catch (e) {
       _addMessage(ChatRole.system, 'Screenshot failed: $e');
     }
   }
 
-  /// Gemini's move_mouse/click/drag coordinates are relative to the last
-  /// screenshot it was shown, which is downscaled from the real screen -
-  /// this maps them back into real screen coordinates before they reach
-  /// SystemControlService. Falls back to passing the coordinates through
-  /// unscaled if either size isn't known yet.
+  /// Gemini's vision grounding always reports coordinates on a 0-1000
+  /// scale normalized to the image, regardless of the image's actual
+  /// pixel dimensions (documented Gemini behavior) - not raw pixels
+  /// within the screenshot, despite what the tool description used to
+  /// imply. Scale straight from that normalized space to the real
+  /// screen. Falls back to passing coordinates through unscaled if the
+  /// real screen size isn't known yet.
   (int, int) _toScreenCoords(int x, int y) {
-    final shot = _lastScreenshotSize;
     final real = _realScreenSize;
-    if (shot == null || real == null) {
+    if (real == null) {
       debugPrint(
-        '[AgentController] _toScreenCoords: no scaling data yet '
-        '(shot=$shot, real=$real), passing ($x, $y) through unscaled',
+        '[AgentController] _toScreenCoords: real screen size unknown, '
+        'passing ($x, $y) through unscaled',
       );
       return (x, y);
     }
     final scaled = (
-      (x * real.width / shot.width).round(),
-      (y * real.height / shot.height).round(),
+      (x / 1000 * real.width).round(),
+      (y / 1000 * real.height).round(),
     );
     debugPrint(
-      '[AgentController] _toScreenCoords: raw=($x, $y) shot=$shot '
-      'real=$real -> scaled=$scaled',
+      '[AgentController] _toScreenCoords: raw=($x, $y)/1000 real=$real '
+      '-> scaled=$scaled',
     );
     return scaled;
   }
@@ -245,7 +239,6 @@ class AgentController extends ChangeNotifier {
       switch (call.name) {
         case 'take_screenshot':
           final shot = await _screen.captureJpeg();
-          _lastScreenshotSize = (width: shot.width, height: shot.height);
           _live.sendImage(shot.bytes);
           result = {'result': 'screenshot captured and sent'};
 
