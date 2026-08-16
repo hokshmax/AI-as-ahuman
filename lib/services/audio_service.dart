@@ -16,7 +16,7 @@ import '../config/app_config.dart';
 /// speaks Float32 samples, hence the PCM16 -> Float32 conversion below).
 class AudioService {
   final AudioRecorder _recorder = AudioRecorder();
-  final MpAudioStream _playback = getAudioStream();
+  final AudioStream _playback = getAudioStream();
 
   StreamSubscription<Uint8List>? _micSub;
   bool _playbackReady = false;
@@ -96,7 +96,7 @@ class AudioService {
 
   Future<void> dispose() async {
     await stopListening();
-    _recorder.dispose();
+    await _recorder.dispose();
     if (_playbackReady) {
       _playback.uninit();
       _playbackReady = false;
