@@ -19,6 +19,40 @@ class ToolDefinitions {
       },
     },
     {
+      'name': 'zoom_in',
+      'description':
+          'Get a magnified, cropped view centered on a rough real-screen '
+          'position, to precisely pinpoint a small or tightly-packed '
+          'target (a Dock icon, a browser tab, a checkbox, a toolbar '
+          'button) before calling move_mouse/click/drag on it. The '
+          'response image is much larger and clearer than a full '
+          'screenshot; it will also state the real-screen pixel bounds '
+          'the zoomed image covers so you can work out an exact position '
+          'proportionally within it, the same way you already do for a '
+          'full screenshot. Use this whenever a target is small or has '
+          'close neighbors (e.g. several similar-looking tabs or icons) - '
+          'guessing directly from the full screenshot is unreliable for '
+          'these.',
+      'parameters': {
+        'type': 'OBJECT',
+        'properties': {
+          'x': {
+            'type': 'INTEGER',
+            'description':
+                'Real-screen X of your rough guess at the target - the '
+                'zoomed view will be centered here.',
+          },
+          'y': {
+            'type': 'INTEGER',
+            'description':
+                'Real-screen Y of your rough guess at the target - the '
+                'zoomed view will be centered here.',
+          },
+        },
+        'required': ['x', 'y'],
+      },
+    },
+    {
       'name': 'move_mouse',
       'description':
           'Move the mouse cursor to an absolute position on screen. '
@@ -155,15 +189,18 @@ Rules:
   (page loads, animations, dialogs).
 - Prefer small, verifiable steps over long blind sequences of actions:
   act, then look, then act again.
-- Small targets (Dock icons, toolbar buttons, checkboxes) are easy to
-  misjudge by a wide margin - the cursor itself is not visible in
-  screenshots, so you can't check your aim before clicking. Look
-  carefully and take your best single shot at the center of the
-  target, then always take_screenshot again right after clicking to
-  confirm the expected change actually happened (a menu opened, an app
-  launched, a checkbox toggled). If it didn't, re-examine the new
-  screenshot and retry with a corrected position rather than assuming
-  it worked.
+- Small or tightly-packed targets (Dock icons, browser tabs, toolbar
+  buttons, checkboxes) are easy to misjudge from a full screenshot
+  alone. For these, always call zoom_in on your rough guess first, use
+  the magnified view to pin down an exact position, and only then call
+  move_mouse/click - don't guess directly from the full screenshot for
+  anything small.
+- The cursor itself is not visible in screenshots, so you can't check
+  your aim after moving, only after clicking. Always take_screenshot
+  again right after clicking to confirm the expected change actually
+  happened (a menu opened, an app launched, a checkbox toggled). If it
+  didn't, re-examine the new screenshot and retry with a corrected
+  position rather than assuming it worked.
 - Never perform destructive actions (deleting files, submitting
   payments, sending messages, changing security settings) without
   confirming with the user first, out loud.

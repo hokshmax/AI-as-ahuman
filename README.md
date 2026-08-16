@@ -102,8 +102,24 @@ display" may not agree (e.g. if capture spans all displays), which
 would reintroduce coordinate drift - not yet handled.
 
 The tools Gemini can call are declared in
-`lib/models/tool_definitions.dart`: `take_screenshot`, `move_mouse`,
-`click`, `drag`, `type_text`, `press_key`, `scroll`.
+`lib/models/tool_definitions.dart`: `take_screenshot`, `zoom_in`,
+`move_mouse`, `click`, `drag`, `type_text`, `press_key`, `scroll`.
+
+### Small-target precision (`zoom_in`)
+
+Testing showed the biggest source of misplaced clicks wasn't a
+coordinate bug (screen size, image mirroring, and the click execution
+were all verified correct) - it's that pinpointing a small or
+tightly-packed target (a Dock icon, one of several browser tabs) from a
+single full-screen screenshot is genuinely hard for the model. The
+`zoom_in` tool gives it a second pass: `ScreenCaptureService
+.captureZoomedJpeg()` takes a fresh capture, crops a small real-screen
+region around Gemini's rough guess, and upscales that crop so the
+target is much larger and clearer - the response also states the real
+screen coordinates that crop covers, so Gemini can work out an exact
+position the same way it already does for a full screenshot. The
+system prompt tells it to use this for small targets before
+move_mouse/click rather than guessing directly from the full image.
 
 ## Testing in GitHub Codespaces
 
