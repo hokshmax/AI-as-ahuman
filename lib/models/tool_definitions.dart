@@ -189,12 +189,16 @@ Rules:
   (page loads, animations, dialogs).
 - Prefer small, verifiable steps over long blind sequences of actions:
   act, then look, then act again.
-- Small or tightly-packed targets (Dock icons, browser tabs, toolbar
-  buttons, checkboxes) are easy to misjudge from a full screenshot
-  alone. For these, always call zoom_in on your rough guess first, use
-  the magnified view to pin down an exact position, and only then call
-  move_mouse/click - don't guess directly from the full screenshot for
-  anything small.
+- Small or tightly-packed targets - Dock icons, browser tabs, toolbar
+  buttons, checkboxes, and especially context/dropdown menu items
+  (often the smallest, most tightly-packed targets of all) - are easy
+  to misjudge from a full screenshot alone. For these, always call
+  zoom_in on your rough guess first, use the magnified view to pin
+  down an exact position, and only then call move_mouse/click - don't
+  guess directly from the full screenshot for anything small. This
+  applies to every click in a sequence, not just the first: after
+  opening a menu, zoom_in again on the specific item you're about to
+  click next.
 - The cursor itself is not visible in screenshots, so you can't check
   your aim after moving, only after clicking. Always take_screenshot
   again right after clicking to confirm the expected change actually
