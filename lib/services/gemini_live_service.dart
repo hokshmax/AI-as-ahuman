@@ -26,6 +26,7 @@ class GeminiLiveService {
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
   bool _setupComplete = false;
+  final StringBuffer _transcriptionBuffer = StringBuffer();
 
   final _audioOutController = StreamController<Uint8List>.broadcast();
   final _textController = StreamController<String>.broadcast();
@@ -84,6 +85,10 @@ class GeminiLiveService {
         'generationConfig': {
           'responseModalities': ['AUDIO'],
         },
+        // Gemini only speaks in AUDIO mode, but this asks it to also
+        // transcribe what it says so a text transcript is always
+        // available even when no speaker is attached to play it.
+        'outputAudioTranscription': <String, dynamic>{},
         'systemInstruction': {
           'parts': [
             {'text': ToolDefinitions.systemInstruction},
@@ -130,7 +135,18 @@ class GeminiLiveService {
         }
       }
 
+      final outputTranscription =
+          serverContent['outputTranscription'] as Map<String, dynamic>?;
+      final transcriptionChunk = outputTranscription?['text'] as String?;
+      if (transcriptionChunk != null && transcriptionChunk.isNotEmpty) {
+        _transcriptionBuffer.write(transcriptionChunk);
+      }
+
       if (serverContent['turnComplete'] == true) {
+        if (_transcriptionBuffer.isNotEmpty) {
+          _textController.add(_transcriptionBuffer.toString());
+          _transcriptionBuffer.clear();
+        }
         _turnCompleteController.add(null);
       }
       return;
