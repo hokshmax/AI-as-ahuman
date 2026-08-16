@@ -48,18 +48,20 @@ class AgentController extends ChangeNotifier {
       var audioAvailable = true;
       try {
         await _audio.init();
-      } catch (e) {
+      } catch (e, st) {
         audioAvailable = false;
+        debugPrint('[AgentController] audio init failed: $e\n$st');
         _addMessage(
           ChatRole.system,
           'Microphone/speaker unavailable ($e) - continuing in '
-          'text-only mode.',
+          'text-only mode. Full trace is in the terminal.',
         );
       }
 
       try {
         await _screen.ensurePermission();
-      } catch (e) {
+      } catch (e, st) {
+        debugPrint('[AgentController] screen permission failed: $e\n$st');
         _addMessage(ChatRole.system, 'Screen capture unavailable: $e');
       }
 
@@ -70,12 +72,13 @@ class AgentController extends ChangeNotifier {
         try {
           _subs.add(_audio.micStream.listen(_live.sendAudioChunk));
           await _audio.startListening();
-        } catch (e) {
+        } catch (e, st) {
           audioAvailable = false;
+          debugPrint('[AgentController] mic startListening failed: $e\n$st');
           _addMessage(
             ChatRole.system,
             'Could not start microphone capture ($e) - continuing in '
-            'text-only mode.',
+            'text-only mode. Full trace is in the terminal.',
           );
         }
       }

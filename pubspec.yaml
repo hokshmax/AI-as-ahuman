@@ -16,6 +16,7 @@ dependencies:
   # Realtime voice <-> Gemini Live API
   web_socket_channel: ^2.4.0
   flutter_sound: ^9.28.0
+  logger: ^2.4.0 # for flutter_sound's verbose logLevel
   permission_handler: ^11.3.1 # Windows only, see AudioService
   flutter_macos_permissions: ^2.1.0 # macOS mic + screen recording
 
