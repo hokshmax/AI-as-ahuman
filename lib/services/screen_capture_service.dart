@@ -33,7 +33,16 @@ class ScreenCaptureService {
   /// Captures the screen and returns the JPEG bytes plus its exact pixel
   /// dimensions - callers need those to convert coordinates Gemini gives
   /// (relative to this image) back into real screen coordinates.
-  Future<({Uint8List bytes, int width, int height})> captureJpeg() async {
+  ///
+  /// When the real screen size is passed, a labeled coordinate grid is
+  /// drawn on top (see _drawCoordinateGrid) so Gemini can read off nearby
+  /// gridline labels instead of estimating raw pixel positions from
+  /// scratch - testing showed unaided estimates land wildly off on
+  /// anything but the largest, most obvious targets.
+  Future<({Uint8List bytes, int width, int height})> captureJpeg({
+    int? screenWidth,
+    int? screenHeight,
+  }) async {
     final dir = await getTemporaryDirectory();
     final path = '${dir.path}/screenshot_${_uuid.v4()}.png';
 
@@ -63,6 +72,17 @@ class ScreenCaptureService {
     final resized = decoded.width > AppConfig.screenshotMaxWidth
         ? img.copyResize(decoded, width: AppConfig.screenshotMaxWidth)
         : decoded;
+
+    if (screenWidth != null && screenHeight != null) {
+      _drawCoordinateGrid(
+        resized,
+        realLeft: 0,
+        realTop: 0,
+        realRight: screenWidth,
+        realBottom: screenHeight,
+        step: 100,
+      );
+    }
 
     final jpegBytes = Uint8List.fromList(
       img.encodeJpg(resized, quality: AppConfig.screenshotJpegQuality),
@@ -143,6 +163,22 @@ class ScreenCaptureService {
     // Upscale for clarity - this is the whole point of "zooming in".
     final zoomed = cropped.width < 700 ? img.copyResize(cropped, width: 700) : cropped;
 
+    final realLeft = (cropLeft / scaleX).round();
+    final realTop = (cropTop / scaleY).round();
+    final realRight = ((cropLeft + cropWidth) / scaleX).round();
+    final realBottom = ((cropTop + cropHeight) / scaleY).round();
+
+    // Finer step than the full screenshot's, since this view covers a
+    // much smaller real-screen range and precision matters most here.
+    _drawCoordinateGrid(
+      zoomed,
+      realLeft: realLeft,
+      realTop: realTop,
+      realRight: realRight,
+      realBottom: realBottom,
+      step: 25,
+    );
+
     final jpegBytes = Uint8List.fromList(img.encodeJpg(zoomed, quality: 85));
 
     if (kDebugMode) {
@@ -153,11 +189,46 @@ class ScreenCaptureService {
     // caller to report to Gemini.
     return (
       bytes: jpegBytes,
-      left: (cropLeft / scaleX).round(),
-      top: (cropTop / scaleY).round(),
-      right: ((cropLeft + cropWidth) / scaleX).round(),
-      bottom: ((cropTop + cropHeight) / scaleY).round(),
+      left: realLeft,
+      top: realTop,
+      right: realRight,
+      bottom: realBottom,
     );
+  }
+
+  /// Draws gridlines every `step` real-screen pixels across
+  /// [realLeft, realRight] x [realTop, realBottom], each labeled with its
+  /// real-screen coordinate, directly onto `image` (mutated in place).
+  /// Lets Gemini read off nearby labels and interpolate rather than
+  /// estimating a raw pixel position with nothing to anchor against -
+  /// unaided estimates were landing on the wrong UI element entirely in
+  /// testing, not just imprecisely on the right one.
+  void _drawCoordinateGrid(
+    img.Image image, {
+    required int realLeft,
+    required int realTop,
+    required int realRight,
+    required int realBottom,
+    required int step,
+  }) {
+    final color = img.ColorRgb8(255, 0, 255);
+    final realWidth = realRight - realLeft;
+    final realHeight = realBottom - realTop;
+    if (realWidth <= 0 || realHeight <= 0) return;
+
+    final firstX = (realLeft / step).ceil() * step;
+    for (var realX = firstX; realX <= realRight; realX += step) {
+      final px = ((realX - realLeft) / realWidth * image.width).round();
+      img.drawLine(image, x1: px, y1: 0, x2: px, y2: image.height - 1, color: color);
+      img.drawString(image, '$realX', font: img.arial14, x: px + 2, y: 2, color: color);
+    }
+
+    final firstY = (realTop / step).ceil() * step;
+    for (var realY = firstY; realY <= realBottom; realY += step) {
+      final py = ((realY - realTop) / realHeight * image.height).round();
+      img.drawLine(image, x1: 0, y1: py, x2: image.width - 1, y2: py, color: color);
+      img.drawString(image, '$realY', font: img.arial14, x: 2, y: py + 2, color: color);
+    }
   }
 
   /// Debug builds only: writes the exact bytes just sent to Gemini to

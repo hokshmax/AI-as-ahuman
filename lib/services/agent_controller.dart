@@ -202,7 +202,10 @@ class AgentController extends ChangeNotifier {
 
   Future<void> _pushScreenshot() async {
     try {
-      final shot = await _screen.captureJpeg();
+      final shot = await _screen.captureJpeg(
+        screenWidth: _realScreenSize?.width,
+        screenHeight: _realScreenSize?.height,
+      );
       _live.sendImage(shot.bytes);
     } catch (e) {
       _addMessage(ChatRole.system, 'Screenshot failed: $e');
@@ -234,7 +237,10 @@ class AgentController extends ChangeNotifier {
     try {
       switch (call.name) {
         case 'take_screenshot':
-          final shot = await _screen.captureJpeg();
+          final shot = await _screen.captureJpeg(
+            screenWidth: _realScreenSize?.width,
+            screenHeight: _realScreenSize?.height,
+          );
           _live.sendImage(shot.bytes);
           result = {'result': 'screenshot captured and sent'};
 

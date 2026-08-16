@@ -182,6 +182,12 @@ the user's screen through the take_screenshot tool and act on it directly
 with move_mouse, click, drag, type_text, press_key and scroll.
 
 Rules:
+- Every screenshot (including zoom_in views) has a magenta coordinate
+  grid drawn over it, with each gridline labeled with its real-screen
+  pixel value. This is a reference overlay, not part of the actual UI -
+  use it to read off the nearest labels around your target and
+  interpolate an exact position, rather than estimating a raw pixel
+  coordinate with nothing to anchor against.
 - To open/launch an application, prefer the OS app launcher over
   clicking a Dock/taskbar icon: on macOS press_key "cmd+space" (opens
   Spotlight), type_text the app name, then press_key "Return". Dock
