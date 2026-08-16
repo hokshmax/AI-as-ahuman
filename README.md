@@ -80,9 +80,36 @@ talking..." box in the UI to drive a session instead.
    | macOS | `cliclick` | `brew install cliclick` (keyboard uses built-in AppleScript) |
    | Windows | none | built-in PowerShell + user32.dll, no install needed |
 
-3. Get a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey).
+3. **macOS only:** `flutter create` sandboxes the app by default, which
+   silently blocks both the Gemini WebSocket connection and the
+   microphone permission prompt. Open the two files it just generated
+   and add these entitlements inside the `<dict>`:
 
-4. Run:
+   `macos/Runner/DebugProfile.entitlements` **and**
+   `macos/Runner/Release.entitlements`:
+   ```xml
+   <key>com.apple.security.network.client</key>
+   <true/>
+   <key>com.apple.security.device.audio-input</key>
+   <true/>
+   ```
+
+   `macos/Runner/Info.plist`:
+   ```xml
+   <key>NSMicrophoneUsageDescription</key>
+   <string>AI as a Human needs the microphone to talk to Gemini.</string>
+   ```
+
+   If you add `permission_handler` (or any plugin) to `pubspec.yaml`
+   *after* already running `flutter create`, also do a clean rebuild so
+   CocoaPods links it in:
+   ```
+   flutter clean && flutter pub get && cd macos && pod install --repo-update && cd ..
+   ```
+
+4. Get a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey).
+
+5. Run:
 
    ```
    flutter pub get
