@@ -8,8 +8,18 @@ class AppConfig {
   static const String geminiApiKey =
       String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
 
-  static const String geminiModel =
-      'models/gemini-2.0-flash-live-001';
+  /// Live API model IDs shift around and access varies by account/region,
+  /// so this is overridable without a code change:
+  ///   flutter run --dart-define=GEMINI_MODEL=models/gemini-live-2.5-flash-preview
+  static const String geminiModel = String.fromEnvironment(
+    'GEMINI_MODEL',
+    defaultValue: 'models/gemini-2.0-flash-live-001',
+  );
+
+  /// How long to wait for the server's setupComplete before giving up and
+  /// reporting an error - Gemini stays silent rather than erroring when
+  /// the requested model isn't valid/accessible for the API key in use.
+  static const Duration setupTimeout = Duration(seconds: 10);
 
   static const String liveEndpoint =
       'wss://generativelanguage.googleapis.com/ws/'

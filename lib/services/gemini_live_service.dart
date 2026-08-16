@@ -28,6 +28,7 @@ class GeminiLiveService {
   StreamSubscription<dynamic>? _subscription;
   bool _setupComplete = false;
   final StringBuffer _transcriptionBuffer = StringBuffer();
+  Timer? _setupTimeoutTimer;
 
   final _audioOutController = StreamController<Uint8List>.broadcast();
   final _textController = StreamController<String>.broadcast();
@@ -76,15 +77,29 @@ class GeminiLiveService {
     _subscription = _channel!.stream.listen(
       _handleMessage,
       onDone: () {
+        _setupTimeoutTimer?.cancel();
         _setupComplete = false;
         _connectionStateController.add(false);
       },
       onError: (Object error) {
+        _setupTimeoutTimer?.cancel();
         _setupComplete = false;
         _connectionStateController.add(false);
         _errorController.add('Socket error: $error');
       },
     );
+
+    _setupTimeoutTimer = Timer(AppConfig.setupTimeout, () {
+      if (_setupComplete) return;
+      _errorController.add(
+        'No response from Gemini after ${AppConfig.setupTimeout.inSeconds}s. '
+        'The connection opened, but the server never acknowledged setup - '
+        'this usually means model "${AppConfig.geminiModel}" is not valid '
+        'or not enabled for this API key. Try a different model with '
+        '--dart-define=GEMINI_MODEL=models/gemini-live-2.5-flash-preview '
+        '(or whatever Live model your key has access to).',
+      );
+    });
 
     _send({
       'setup': {
@@ -116,6 +131,7 @@ class GeminiLiveService {
     debugPrint('[GeminiLive] recv: ${jsonEncode(message)}');
 
     if (message.containsKey('setupComplete')) {
+      _setupTimeoutTimer?.cancel();
       _setupComplete = true;
       _connectionStateController.add(true);
       return;
@@ -259,6 +275,7 @@ class GeminiLiveService {
   }
 
   Future<void> disconnect() async {
+    _setupTimeoutTimer?.cancel();
     await _subscription?.cancel();
     await _channel?.sink.close();
     _setupComplete = false;

@@ -130,6 +130,22 @@ talking..." box in the UI to drive a session instead.
    web targets can't drive the OS mouse/keyboard, so this app is
    desktop-only.)
 
+### If the app connects but Gemini never replies
+
+Google renames and rotates Live API model IDs fairly often, and access
+varies by API key/region. If the session opens (status shows "Live")
+but you never get `"Gemini session setup complete."` in the transcript,
+you'll now see a clear timeout error after 10s instead of silence — it
+means `AppConfig.geminiModel`'s default isn't valid for your key. Try
+overriding it:
+```
+flutter run -d macos --dart-define=GEMINI_API_KEY=your_key_here \
+  --dart-define=GEMINI_MODEL=models/gemini-live-2.5-flash-preview
+```
+Check [Google AI Studio](https://aistudio.google.com/) or the
+[Live API docs](https://ai.google.dev/gemini-api/docs/live-api) for the
+current model ID your key has access to if that one also fails.
+
 ## Safety
 
 Giving a model direct control of your mouse and keyboard is inherently
