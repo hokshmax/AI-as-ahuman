@@ -22,8 +22,10 @@ speaker ◀──PCM16── (audio out)                         │
   the Gemini Live ("BidiGenerateContent") WebSocket protocol: it sends
   the session setup (model, system instruction, tool declarations),
   streams mic audio and screenshots in, and receives audio, text, and
-  `toolCall` messages back. Automatic (server-side) voice activity
-  detection is disabled in the setup - see "Push-to-talk" below.
+  `toolCall` messages back. `contextWindowCompression.slidingWindow` is
+  enabled in the setup - without it, Live sessions that send both audio
+  and video/images (this app sends both) are capped at 2 minutes; with
+  it, the server truncates old turns instead of ending the session.
 - **`AudioService`** captures the microphone (`record`, streaming
   PCM16) and plays Gemini's spoken replies back (`mp_audio_stream`,
   which speaks Float32 - `AudioService` converts each incoming PCM16

@@ -128,6 +128,12 @@ class GeminiLiveService {
         'realtimeInputConfig': {
           'activityHandling': 'NO_INTERRUPTION',
         },
+        // Audio+video Live sessions (this app sends both) are capped at
+        // 2 minutes without this - the server truncates old turns via a
+        // sliding window instead of just cutting the session off.
+        'contextWindowCompression': {
+          'slidingWindow': <String, dynamic>{},
+        },
         'systemInstruction': {
           'parts': [
             {
