@@ -221,11 +221,22 @@ class AgentController extends ChangeNotifier {
   (int, int) _toScreenCoords(int x, int y) {
     final shot = _lastScreenshotSize;
     final real = _realScreenSize;
-    if (shot == null || real == null) return (x, y);
-    return (
+    if (shot == null || real == null) {
+      debugPrint(
+        '[AgentController] _toScreenCoords: no scaling data yet '
+        '(shot=$shot, real=$real), passing ($x, $y) through unscaled',
+      );
+      return (x, y);
+    }
+    final scaled = (
       (x * real.width / shot.width).round(),
       (y * real.height / shot.height).round(),
     );
+    debugPrint(
+      '[AgentController] _toScreenCoords: raw=($x, $y) shot=$shot '
+      'real=$real -> scaled=$scaled',
+    );
+    return scaled;
   }
 
   Future<void> _handleFunctionCall(GeminiFunctionCall call) async {
