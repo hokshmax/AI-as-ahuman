@@ -41,26 +41,27 @@ speaker ◀──PCM16── (audio out)                         │
   dispatches each `toolCall` to `SystemControlService`, reporting the
   result back to Gemini so it can decide what to do next.
 
-### Push-to-talk
+### Automatic self-interruption prevention
 
-The app uses push-to-talk instead of always-on listening: hold the
-"Hold to talk" button while you speak, release it when you're done.
-Mic audio is only forwarded while held (`AgentController.isTalking`
-gates it), and the button press sends explicit
-`realtimeInput.activityStart` / `activityEnd` signals so Gemini knows
-exactly when your turn starts and ends.
+Listening is always-on - no push-to-talk button. The mic is only ever
+*muted automatically* for as long as Gemini's own reply is playing
+(`AgentController.assistantSpeaking`, set the instant audio starts
+arriving and cleared ~600ms after `turnComplete`, to cover the tail
+still draining out of the speaker). Mic audio is dropped client-side
+during that window instead of being forwarded.
 
-This isn't just a UX choice — it fixes a real bug you'll otherwise hit
-constantly: with the Mac's built-in speaker and mic (no headphones),
-Gemini's own voice leaks back into the mic, and the Live API's
-automatic voice-activity detection reads that echo as you interrupting
-it, cutting Gemini off mid-sentence. Disabling automatic detection and
-gating the mic behind a button means Gemini's own playback is never
-audio that gets sent back to it. If you're using headphones and want
-always-on listening instead, that's a matter of re-enabling
-`automaticActivityDetection` in `gemini_live_service.dart`'s setup
-message and always forwarding `micStream` in `AgentController.start()`
-instead of gating on `isTalking`.
+This exists because of a real bug you'll otherwise hit constantly: with
+the Mac's built-in speaker and mic (no headphones), Gemini's own voice
+leaks back into the mic, and the Live API's automatic voice-activity
+detection reads that echo as you interrupting it, cutting Gemini off
+mid-sentence after a word or two. Since the mic is muted while Gemini
+is talking, that echo is never sent to the server in the first place,
+so it can't misread its own voice as an interruption - while you can
+still jump in and interrupt normally the moment Gemini stops.
+
+If you're on headphones and this muting is unnecessary for you (no
+echo path exists), you can remove the `if (!assistantSpeaking)` guard
+around `_live.sendAudioChunk` in `AgentController.start()`.
 
 The tools Gemini can call are declared in
 `lib/models/tool_definitions.dart`: `take_screenshot`, `move_mouse`,

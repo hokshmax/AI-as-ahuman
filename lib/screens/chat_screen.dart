@@ -113,8 +113,10 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
-          const SizedBox(width: 12),
-          if (isLive) _buildTalkButton(context),
+          if (isLive) ...[
+            const SizedBox(width: 12),
+            _buildMicStatus(context),
+          ],
           const SizedBox(width: 12),
           FilledButton.icon(
             onPressed: isConnecting
@@ -128,43 +130,23 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  /// Push-to-talk: mic audio is only forwarded to Gemini while this is
-  /// held down. Automatic voice detection is disabled server-side, so
-  /// this is the only way audio reaches Gemini - it also sidesteps the
-  /// "own playback echoing into the mic looks like an interruption"
-  /// problem entirely, since nothing is sent while Gemini is talking
-  /// unless you're actively holding the button.
-  Widget _buildTalkButton(BuildContext context) {
-    final isTalking = _controller.isTalking;
-    return GestureDetector(
-      onTapDown: (_) => _controller.startTalking(),
-      onTapUp: (_) => _controller.stopTalking(),
-      onTapCancel: () => _controller.stopTalking(),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        decoration: BoxDecoration(
-          color: isTalking
-              ? Theme.of(context).colorScheme.primary
-              : Theme.of(context).colorScheme.secondaryContainer,
-          borderRadius: BorderRadius.circular(8),
+  /// Passive indicator only - listening is fully automatic. The mic is
+  /// muted while Gemini is speaking (see AgentController.assistantSpeaking)
+  /// so its own playback can't be picked back up and misread as an
+  /// interruption; this just shows which state you're currently in.
+  Widget _buildMicStatus(BuildContext context) {
+    final speaking = _controller.assistantSpeaking;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          speaking ? Icons.volume_up : Icons.mic,
+          size: 18,
+          color: speaking ? Theme.of(context).colorScheme.tertiary : Colors.greenAccent,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isTalking ? Icons.mic : Icons.mic_none,
-              color: isTalking ? Theme.of(context).colorScheme.onPrimary : null,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              isTalking ? 'Listening...' : 'Hold to talk',
-              style: TextStyle(
-                color: isTalking ? Theme.of(context).colorScheme.onPrimary : null,
-              ),
-            ),
-          ],
-        ),
-      ),
+        const SizedBox(width: 6),
+        Text(speaking ? 'Gemini speaking' : 'Listening'),
+      ],
     );
   }
 }

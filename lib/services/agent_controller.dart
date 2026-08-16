@@ -35,28 +35,18 @@ class AgentController extends ChangeNotifier {
   SessionState state = SessionState.idle;
   String? lastError;
 
-  /// True while the user is holding the talk button. Automatic
-  /// server-side voice detection is disabled (see GeminiLiveService's
-  /// setup message), so mic audio is only ever forwarded during this
-  /// window - otherwise Gemini's own playback echoing into an unmuted
-  /// mic gets misread as the user interrupting it.
-  bool isTalking = false;
+  /// True from the moment Gemini's reply audio starts until shortly
+  /// after its turn ends. Mic audio is never forwarded during this
+  /// window (see the micStream listener in start()) so its own
+  /// playback - echoing back through an unmuted mic on a laptop with
+  /// no headphones - can never be misread by the server's voice
+  /// detection as the user interrupting it. This makes listening fully
+  /// automatic (no push-to-talk button) while still preventing
+  /// self-interruption.
+  bool assistantSpeaking = false;
+  Timer? _unmuteTimer;
 
   final List<StreamSubscription<dynamic>> _subs = [];
-
-  void startTalking() {
-    if (state != SessionState.live || isTalking) return;
-    isTalking = true;
-    _live.sendActivityStart();
-    notifyListeners();
-  }
-
-  void stopTalking() {
-    if (!isTalking) return;
-    isTalking = false;
-    _live.sendActivityEnd();
-    notifyListeners();
-  }
 
   Future<void> start() async {
     if (state == SessionState.connecting || state == SessionState.live) return;
@@ -91,7 +81,7 @@ class AgentController extends ChangeNotifier {
       if (audioAvailable) {
         try {
           _subs.add(_audio.micStream.listen((chunk) {
-            if (isTalking) _live.sendAudioChunk(chunk);
+            if (!assistantSpeaking) _live.sendAudioChunk(chunk);
           }));
           await _audio.startListening();
         } catch (e, st) {
@@ -136,7 +126,8 @@ class AgentController extends ChangeNotifier {
   }
 
   Future<void> stop() async {
-    isTalking = false;
+    _unmuteTimer?.cancel();
+    assistantSpeaking = false;
     for (final s in _subs) {
       await s.cancel();
     }
@@ -153,11 +144,30 @@ class AgentController extends ChangeNotifier {
 
   void _wireLiveServiceEvents() {
     _subs.add(_live.audioOutput.listen((chunk) {
+      // Mute the mic for as long as Gemini is speaking (see
+      // assistantSpeaking's doc comment) - and cancel any pending
+      // unmute, in case more audio starts arriving mid-grace-period.
+      _unmuteTimer?.cancel();
+      if (!assistantSpeaking) {
+        assistantSpeaking = true;
+        notifyListeners();
+      }
       unawaited(_audio.playChunk(chunk));
     }));
 
     _subs.add(_live.textOutput.listen((text) {
       _addMessage(ChatRole.assistant, text);
+    }));
+
+    _subs.add(_live.turnComplete.listen((_) {
+      // The server has stopped generating, but locally-buffered audio
+      // is likely still playing out the speaker - wait a beat before
+      // unmuting so that tail isn't picked back up by the mic either.
+      _unmuteTimer?.cancel();
+      _unmuteTimer = Timer(const Duration(milliseconds: 600), () {
+        assistantSpeaking = false;
+        notifyListeners();
+      });
     }));
 
     _subs.add(_live.interrupted.listen((_) {

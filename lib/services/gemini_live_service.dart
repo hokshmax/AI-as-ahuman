@@ -118,14 +118,6 @@ class GeminiLiveService {
         // transcribe what it says so a text transcript is always
         // available even when no speaker is attached to play it.
         'outputAudioTranscription': <String, dynamic>{},
-        // Server-side voice-activity detection can't tell Gemini's own
-        // playback (echoing back through an unmuted mic on a laptop
-        // with no headphones) from a real interruption. Push-to-talk
-        // (sendActivityStart/sendActivityEnd, gated in AudioService by
-        // the UI's talk button) replaces it with explicit control.
-        'realtimeInputConfig': {
-          'automaticActivityDetection': {'disabled': true},
-        },
         'systemInstruction': {
           'parts': [
             {'text': ToolDefinitions.systemInstruction},
@@ -211,25 +203,6 @@ class GeminiLiveService {
         );
       }
     }
-  }
-
-  /// Marks the start of a user turn. Required since automatic voice
-  /// activity detection is disabled - call this when the user presses
-  /// the talk button, before streaming any audio chunks.
-  void sendActivityStart() {
-    if (!_setupComplete) return;
-    _send({
-      'realtimeInput': {'activityStart': <String, dynamic>{}},
-    });
-  }
-
-  /// Marks the end of a user turn - call this when the talk button is
-  /// released so Gemini knows to respond.
-  void sendActivityEnd() {
-    if (!_setupComplete) return;
-    _send({
-      'realtimeInput': {'activityEnd': <String, dynamic>{}},
-    });
   }
 
   /// Streams one chunk of mic audio (16-bit PCM, mono, 16kHz) to Gemini.
