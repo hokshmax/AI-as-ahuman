@@ -208,14 +208,14 @@ class GeminiLiveService {
   /// Streams one chunk of mic audio (16-bit PCM, mono, 16kHz) to Gemini.
   void sendAudioChunk(Uint8List pcm16) {
     if (!_setupComplete) return;
+    // realtimeInput.mediaChunks is deprecated as of Gemini 3.1 - the
+    // server now expects typed audio/video/text fields instead.
     _send({
       'realtimeInput': {
-        'mediaChunks': [
-          {
-            'mimeType': 'audio/pcm;rate=${AppConfig.inputSampleRate}',
-            'data': base64Encode(pcm16),
-          },
-        ],
+        'audio': {
+          'mimeType': 'audio/pcm;rate=${AppConfig.inputSampleRate}',
+          'data': base64Encode(pcm16),
+        },
       },
     });
   }
@@ -226,12 +226,10 @@ class GeminiLiveService {
     if (!_setupComplete) return;
     _send({
       'realtimeInput': {
-        'mediaChunks': [
-          {
-            'mimeType': 'image/jpeg',
-            'data': base64Encode(jpegBytes),
-          },
-        ],
+        'video': {
+          'mimeType': 'image/jpeg',
+          'data': base64Encode(jpegBytes),
+        },
       },
     });
   }
