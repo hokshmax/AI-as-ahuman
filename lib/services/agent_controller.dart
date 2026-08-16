@@ -244,33 +244,6 @@ class AgentController extends ChangeNotifier {
           _live.sendImage(shot.bytes);
           result = {'result': 'screenshot captured and sent'};
 
-        case 'zoom_in':
-          final real = _realScreenSize;
-          if (real == null) {
-            result = {'error': 'Real screen size is not known yet.'};
-            break;
-          }
-          final zoom = await _screen.captureZoomedJpeg(
-            centerX: call.args['x'] as int,
-            centerY: call.args['y'] as int,
-            screenWidth: real.width,
-            screenHeight: real.height,
-          );
-          _live.sendImage(zoom.bytes);
-          _logAction(
-            'zoom_in(${call.args['x']}, ${call.args['y']}) -> covers real '
-            'screen (${zoom.left},${zoom.top}) to (${zoom.right},${zoom.bottom})',
-          );
-          result = {
-            'result': 'zoomed view sent',
-            'covers_real_screen_region': {
-              'left': zoom.left,
-              'top': zoom.top,
-              'right': zoom.right,
-              'bottom': zoom.bottom,
-            },
-          };
-
         case 'move_mouse':
           final (x, y) = _toScreenCoords(
             call.args['x'] as int,

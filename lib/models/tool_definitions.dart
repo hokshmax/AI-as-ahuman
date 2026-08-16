@@ -19,40 +19,6 @@ class ToolDefinitions {
       },
     },
     {
-      'name': 'zoom_in',
-      'description':
-          'Get a magnified, cropped view centered on a rough real-screen '
-          'position, to precisely pinpoint a small or tightly-packed '
-          'target (a Dock icon, a browser tab, a checkbox, a toolbar '
-          'button) before calling move_mouse/click/drag on it. The '
-          'response image is much larger and clearer than a full '
-          'screenshot; it will also state the real-screen pixel bounds '
-          'the zoomed image covers so you can work out an exact position '
-          'proportionally within it, the same way you already do for a '
-          'full screenshot. Use this whenever a target is small or has '
-          'close neighbors (e.g. several similar-looking tabs or icons) - '
-          'guessing directly from the full screenshot is unreliable for '
-          'these.',
-      'parameters': {
-        'type': 'OBJECT',
-        'properties': {
-          'x': {
-            'type': 'INTEGER',
-            'description':
-                'Real-screen X of your rough guess at the target - the '
-                'zoomed view will be centered here.',
-          },
-          'y': {
-            'type': 'INTEGER',
-            'description':
-                'Real-screen Y of your rough guess at the target - the '
-                'zoomed view will be centered here.',
-          },
-        },
-        'required': ['x', 'y'],
-      },
-    },
-    {
       'name': 'move_mouse',
       'description':
           'Move the mouse cursor to an absolute position on screen. '
@@ -182,12 +148,12 @@ the user's screen through the take_screenshot tool and act on it directly
 with move_mouse, click, drag, type_text, press_key and scroll.
 
 Rules:
-- Every screenshot (including zoom_in views) has a magenta coordinate
-  grid drawn over it, with each gridline labeled with its real-screen
-  pixel value. This is a reference overlay, not part of the actual UI -
-  use it to read off the nearest labels around your target and
-  interpolate an exact position, rather than estimating a raw pixel
-  coordinate with nothing to anchor against.
+- Every screenshot has a magenta coordinate grid drawn over it, with
+  each gridline labeled with its real-screen pixel value. This is a
+  reference overlay, not part of the actual UI - use it to read off the
+  nearest labels around your target and interpolate an exact position,
+  rather than estimating a raw pixel coordinate with nothing to anchor
+  against.
 - To open/launch an application, prefer the OS app launcher over
   clicking a Dock/taskbar icon: on macOS press_key "cmd+space" (opens
   Spotlight), type_text the app name, then press_key "Return". Dock
@@ -204,15 +170,10 @@ Rules:
 - Prefer small, verifiable steps over long blind sequences of actions:
   act, then look, then act again.
 - Small or tightly-packed targets - Dock icons, browser tabs, toolbar
-  buttons, checkboxes, and especially context/dropdown menu items
-  (often the smallest, most tightly-packed targets of all) - are easy
-  to misjudge from a full screenshot alone. For these, always call
-  zoom_in on your rough guess first, use the magnified view to pin
-  down an exact position, and only then call move_mouse/click - don't
-  guess directly from the full screenshot for anything small. This
-  applies to every click in a sequence, not just the first: after
-  opening a menu, zoom_in again on the specific item you're about to
-  click next.
+  buttons, checkboxes, and especially context/dropdown menu items - are
+  easy to misjudge. Use the coordinate grid carefully for these: find
+  the gridlines closest to the target on both axes and interpolate
+  between their labels rather than eyeballing a position.
 - The cursor itself is not visible in screenshots, so you can't check
   your aim after moving, only after clicking. Always take_screenshot
   again right after clicking to confirm the expected change actually
