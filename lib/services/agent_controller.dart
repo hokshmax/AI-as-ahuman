@@ -80,7 +80,8 @@ class AgentController extends ChangeNotifier {
 
       try {
         await _screen.ensurePermission();
-        _realScreenSize = await _screen.screenSize();
+        _realScreenSize = await _system.screenSize();
+        debugPrint('[AgentController] real screen size: $_realScreenSize');
       } catch (e, st) {
         debugPrint('[AgentController] screen permission failed: $e\n$st');
         _addMessage(ChatRole.system, 'Screen capture unavailable: $e');

@@ -64,12 +64,33 @@ activity, closing that race entirely - Gemini now always finishes what
 it's saying. The trade-off: you can no longer verbally barge in and cut
 it off mid-sentence either; you have to wait for it to finish (or use
 the text box, which isn't affected). Switch back to
-`START_OF_ACTIVITY_INTERRUPTS` if you'd rather have true barge-in and
-are on headphones where the echo problem doesn't apply.
+`START_OF_ACTIVITY_INTERRUPTS` (and remove the `if (!assistantSpeaking)`
+guard around `_live.sendAudioChunk` in `AgentController.start()`) if
+you'd rather have true barge-in and are on headphones where the echo
+problem doesn't apply.
 
-If you're on headphones and this muting is unnecessary for you (no
-echo path exists), you can remove the `if (!assistantSpeaking)` guard
-around `_live.sendAudioChunk` in `AgentController.start()`.
+### Coordinate mapping (screenshot pixels -> real screen)
+
+Gemini's `move_mouse`/`click`/`drag` coordinates are relative to the
+screenshot it was last shown, which is downscaled from the real screen
+(`AppConfig.screenshotMaxWidth`). `AgentController._toScreenCoords()`
+scales those back up using the ratio between the last screenshot's
+exact pixel size and the real screen size.
+
+That real screen size is deliberately fetched via
+`SystemControlService.screenSize()` - which queries it through the
+*same* tool that performs clicks (`xdotool getdisplaygeometry` on
+Linux, `osascript`/System Events desktop bounds on macOS, WinForms
+`Screen.PrimaryScreen.Bounds` on Windows) - rather than a separate
+plugin. A separate screen-info plugin can silently report a different
+unit (e.g. physical Retina pixels vs. the logical points `cliclick`
+actually clicks in), which produces exactly the "consistently
+scaled/offset" symptom this was built to avoid.
+
+Known limitation: this assumes a single display. On a multi-monitor
+setup, `screen_capturer`'s capture region and `screenSize()`'s "primary
+display" may not agree (e.g. if capture spans all displays), which
+would reintroduce coordinate drift - not yet handled.
 
 The tools Gemini can call are declared in
 `lib/models/tool_definitions.dart`: `take_screenshot`, `move_mouse`,

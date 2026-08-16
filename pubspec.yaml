@@ -21,7 +21,6 @@ dependencies:
 
   # Screen vision
   screen_capturer: ^0.2.3
-  screen_retriever: ^0.2.0
   image: ^4.2.0
 
   # State + utils

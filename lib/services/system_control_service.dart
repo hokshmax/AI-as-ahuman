@@ -10,6 +10,44 @@ import 'dart:io';
 ///              "System Events" for keyboard
 ///   - Windows: PowerShell + a small inline C# shim over user32.dll
 class SystemControlService {
+  /// The screen size in whatever coordinate space moveMouse/click/drag
+  /// actually operate in - deliberately queried through the *same* tool
+  /// used for those calls (not a separate plugin like screen_retriever),
+  /// so there's no risk of one reporting physical Retina pixels and the
+  /// other logical points and silently scaling every click wrong.
+  Future<({int width, int height})> screenSize() async {
+    if (Platform.isLinux) {
+      final result = await _run('xdotool', ['getdisplaygeometry']);
+      final parts = result.stdout.toString().trim().split(RegExp(r'\s+'));
+      return (width: int.parse(parts[0]), height: int.parse(parts[1]));
+    } else if (Platform.isMacOS) {
+      // "System Events" is the same automation layer keystroke/click
+      // commands go through, so its notion of the desktop bounds is
+      // guaranteed to match the coordinate space cliclick uses.
+      final result = await _run('osascript', [
+        '-e',
+        'tell application "Finder" to get bounds of window of desktop',
+      ]);
+      final bounds = result.stdout
+          .toString()
+          .trim()
+          .split(',')
+          .map((s) => int.parse(s.trim()))
+          .toList();
+      final [left, top, right, bottom] = bounds;
+      return (width: right - left, height: bottom - top);
+    } else if (Platform.isWindows) {
+      final result = await _powershell('''
+        Add-Type -AssemblyName System.Windows.Forms
+        $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+        Write-Output "$($b.Width) $($b.Height)"
+      ''');
+      final parts = result.stdout.toString().trim().split(RegExp(r'\s+'));
+      return (width: int.parse(parts[0]), height: int.parse(parts[1]));
+    }
+    throw UnsupportedError('screenSize is not supported on this platform.');
+  }
+
   Future<void> moveMouse(int x, int y) async {
     if (Platform.isLinux) {
       await _run('xdotool', ['mousemove', '$x', '$y']);
@@ -162,7 +200,7 @@ class SystemControlService {
     return result;
   }
 
-  Future<void> _powershell(String script) async {
+  Future<ProcessResult> _powershell(String script) async {
     const shim = '''
       Add-Type -AssemblyName System.Windows.Forms
       Add-Type @"
@@ -175,7 +213,7 @@ class SystemControlService {
         }
 "@
     ''';
-    await _run('powershell', ['-NoProfile', '-Command', '$shim\n$script']);
+    return _run('powershell', ['-NoProfile', '-Command', '$shim\n$script']);
   }
 
   String _toAppleScriptKey(String key) => key;

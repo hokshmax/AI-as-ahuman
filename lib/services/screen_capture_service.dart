@@ -5,7 +5,6 @@ import 'package:flutter_macos_permissions/flutter_macos_permissions.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:screen_capturer/screen_capturer.dart';
-import 'package:screen_retriever/screen_retriever.dart';
 import 'package:uuid/uuid.dart';
 
 import '../config/app_config.dart';
@@ -71,14 +70,5 @@ class ScreenCaptureService {
       width: resized.width,
       height: resized.height,
     );
-  }
-
-  /// The screen size in the same coordinate space SystemControlService's
-  /// mouse calls operate in - logical points on macOS (what NSScreen and
-  /// cliclick both use), not necessarily raw Retina pixel dimensions.
-  Future<({int width, int height})> screenSize() async {
-    final display = await screenRetriever.getPrimaryDisplay();
-    final size = display.size;
-    return (width: size.width.round(), height: size.height.round());
   }
 }
