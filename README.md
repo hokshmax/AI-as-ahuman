@@ -110,9 +110,16 @@ talking..." box in the UI to drive a session instead.
    Screen Recording** and relaunch the app). The first click/keystroke
    may similarly need **Accessibility** permission granted the same way.
 
-   If you add `permission_handler` (or any plugin) to `pubspec.yaml`
-   *after* already running `flutter create`, also do a clean rebuild so
-   CocoaPods links it in:
+   Note: `permission_handler` only ships implementations for Android,
+   iOS, web and Windows — there's no macOS or Linux backend, so
+   `AudioService` skips calling it there entirely (see the
+   `Platform.isWindows` check in `audio_service.dart`). On macOS the
+   mic consent dialog appears automatically the first time
+   `flutter_sound` opens the recorder, driven by the
+   `NSMicrophoneUsageDescription` entry above — no extra plugin needed.
+
+   If you add any other plugin to `pubspec.yaml` *after* already running
+   `flutter create`, do a clean rebuild so CocoaPods links it in:
    ```
    flutter clean && flutter pub get && cd macos && pod install --repo-update && cd ..
    ```
