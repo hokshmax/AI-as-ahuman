@@ -118,6 +118,16 @@ class GeminiLiveService {
         // transcribe what it says so a text transcript is always
         // available even when no speaker is attached to play it.
         'outputAudioTranscription': <String, dynamic>{},
+        // Default barge-in behaviour (START_OF_ACTIVITY_INTERRUPTS) cuts
+        // Gemini off the instant it detects any activity on the mic -
+        // including its own voice leaking back in through an unmuted
+        // speaker/mic pair. AgentController already mutes the mic while
+        // Gemini is talking, but that's a client-side race against the
+        // network; this makes the server itself never treat mic activity
+        // as an interruption, so replies always finish regardless of timing.
+        'realtimeInputConfig': {
+          'activityHandling': 'NO_INTERRUPTION',
+        },
         'systemInstruction': {
           'parts': [
             {'text': ToolDefinitions.systemInstruction},

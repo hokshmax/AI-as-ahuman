@@ -54,10 +54,18 @@ This exists because of a real bug you'll otherwise hit constantly: with
 the Mac's built-in speaker and mic (no headphones), Gemini's own voice
 leaks back into the mic, and the Live API's automatic voice-activity
 detection reads that echo as you interrupting it, cutting Gemini off
-mid-sentence after a word or two. Since the mic is muted while Gemini
-is talking, that echo is never sent to the server in the first place,
-so it can't misread its own voice as an interruption - while you can
-still jump in and interrupt normally the moment Gemini stops.
+mid-sentence after a word or two. Client-side muting alone is a race
+against the network, though - a chunk of mic audio sent moments before
+`assistantSpeaking` flips can still land server-side just as Gemini
+starts talking. So `gemini_live_service.dart`'s setup also sets
+`realtimeInputConfig.activityHandling` to `NO_INTERRUPTION`, which
+tells the *server* to never cut a reply short due to detected mic
+activity, closing that race entirely - Gemini now always finishes what
+it's saying. The trade-off: you can no longer verbally barge in and cut
+it off mid-sentence either; you have to wait for it to finish (or use
+the text box, which isn't affected). Switch back to
+`START_OF_ACTIVITY_INTERRUPTS` if you'd rather have true barge-in and
+are on headphones where the echo problem doesn't apply.
 
 If you're on headphones and this muting is unnecessary for you (no
 echo path exists), you can remove the `if (!assistantSpeaking)` guard
