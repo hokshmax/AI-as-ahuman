@@ -255,7 +255,15 @@ class AgentController extends ChangeNotifier {
           );
           await _system.moveMouse(x, y);
           _logAction('move_mouse($x, $y)');
-          result = {'result': 'ok'};
+          // Automatically follow every move with an updated view marking
+          // the new cursor position, instead of relying on a separate
+          // take_screenshot call - closer to how a person just sees
+          // their cursor move rather than having to deliberately check.
+          await _pushScreenshot();
+          result = {
+            'result': 'moved - an updated screenshot with the new cursor '
+                'position was sent, check it before clicking',
+          };
 
         case 'click':
           final rawX = call.args['x'] as int?;
