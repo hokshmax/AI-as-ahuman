@@ -149,14 +149,14 @@ class SystemControlService {
 
   Future<void> pressKey(String key) async {
     if (Platform.isLinux) {
+      // xdotool's own key syntax already accepts "ctrl+alt+t" directly.
       await _run('xdotool', ['key', key]);
     } else if (Platform.isMacOS) {
-      await _run('osascript', [
-        '-e',
-        'tell application "System Events" to keystroke "${_toAppleScriptKey(key)}"',
-      ]);
+      await _run('osascript', ['-e', _appleScriptKeyCommand(key)]);
     } else if (Platform.isWindows) {
-      await _powershell('[System.Windows.Forms.SendKeys]::SendWait("${_toSendKeys(key)}")');
+      await _powershell(
+        '[System.Windows.Forms.SendKeys]::SendWait("${_toSendKeysCombo(key)}")',
+      );
     } else {
       throw UnsupportedError('Keyboard control is not supported on this platform.');
     }
@@ -218,17 +218,95 @@ class SystemControlService {
     return _run('powershell', ['-NoProfile', '-Command', '$shim\n$script']);
   }
 
-  String _toAppleScriptKey(String key) => key;
+  // macOS key codes for keys that AppleScript's `keystroke` can't express
+  // as plain characters (used with `key code N` instead).
+  static const _macKeyCodes = {
+    'space': 49,
+    'return': 36,
+    'enter': 36,
+    'escape': 53,
+    'esc': 53,
+    'tab': 48,
+    'delete': 51,
+    'backspace': 51,
+    'left': 123,
+    'right': 124,
+    'down': 125,
+    'up': 126,
+  };
 
-  String _toSendKeys(String key) {
-    const specials = {
-      'Return': '{ENTER}',
-      'Enter': '{ENTER}',
-      'Escape': '{ESC}',
-      'Tab': '{TAB}',
-      'Backspace': '{BACKSPACE}',
-      'Delete': '{DELETE}',
+  /// Builds a "System Events" command for a key or combo like "cmd+space",
+  /// "ctrl+c" or "Return". A previous version passed the raw string
+  /// straight into `keystroke "..."`, which for a combo like "cmd+space"
+  /// just typed the literal 9 characters "cmd+space" instead of actually
+  /// pressing Cmd+Space - AppleScript needs modifiers expressed via a
+  /// `using {command down, ...}` clause, not embedded in the key text.
+  String _appleScriptKeyCommand(String key) {
+    final parts = key.split('+').map((p) => p.trim().toLowerCase()).toList();
+    final mainKey = parts.removeLast();
+
+    final modifiers = parts
+        .map((m) => switch (m) {
+              'cmd' || 'command' => 'command down',
+              'ctrl' || 'control' => 'control down',
+              'alt' || 'option' => 'option down',
+              'shift' => 'shift down',
+              _ => null,
+            })
+        .whereType<String>()
+        .toList();
+    final using = modifiers.isEmpty ? '' : ' using {${modifiers.join(', ')}}';
+
+    final keyCode = _macKeyCodes[mainKey];
+    if (keyCode != null) {
+      return 'tell application "System Events" to key code $keyCode$using';
+    }
+
+    final escaped = mainKey.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+    return 'tell application "System Events" to keystroke "$escaped"$using';
+  }
+
+  /// Converts a combo like "ctrl+c" or "Return" into SendKeys' own syntax
+  /// (^ for Ctrl, % for Alt, + for Shift, {NAME} for named keys) - the
+  /// same class of bug as the macOS one: passing "ctrl+c" straight
+  /// through would type the literal text, not press Ctrl+C.
+  String _toSendKeysCombo(String key) {
+    const specialKeys = {
+      'return': '{ENTER}',
+      'enter': '{ENTER}',
+      'escape': '{ESC}',
+      'esc': '{ESC}',
+      'tab': '{TAB}',
+      'backspace': '{BACKSPACE}',
+      'delete': '{DELETE}',
+      'space': ' ',
+      'left': '{LEFT}',
+      'right': '{RIGHT}',
+      'up': '{UP}',
+      'down': '{DOWN}',
     };
-    return specials[key] ?? key;
+
+    final parts = key.split('+').map((p) => p.trim().toLowerCase()).toList();
+    final mainKey = parts.removeLast();
+
+    final prefix = StringBuffer();
+    for (final m in parts) {
+      switch (m) {
+        case 'ctrl':
+        case 'control':
+          prefix.write('^');
+        case 'alt':
+        case 'option':
+          prefix.write('%');
+        case 'shift':
+          prefix.write('+');
+        // SendKeys has no standard modifier symbol for the Windows key.
+      }
+    }
+
+    final mapped = specialKeys[mainKey] ?? mainKey;
+    // Multi-character non-special keys need SendKeys' own escaping for
+    // its reserved characters; single letters/digits are safe as-is.
+    return '$prefix$mapped';
   }
 }
