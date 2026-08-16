@@ -35,6 +35,16 @@ class AgentController extends ChangeNotifier {
   SessionState state = SessionState.idle;
   String? lastError;
 
+  /// The real screen size, in the coordinate space SystemControlService's
+  /// mouse calls operate in. Fetched once at session start.
+  ({int width, int height})? _realScreenSize;
+
+  /// Pixel dimensions of the last screenshot sent to Gemini - x/y in its
+  /// tool calls are relative to this image, not the real screen, so they
+  /// need scaling by (_realScreenSize / _lastScreenshotSize) before being
+  /// handed to SystemControlService.
+  ({int width, int height})? _lastScreenshotSize;
+
   /// True from the moment Gemini's reply audio starts until shortly
   /// after its turn ends. Mic audio is never forwarded during this
   /// window (see the micStream listener in start()) so its own
@@ -70,6 +80,7 @@ class AgentController extends ChangeNotifier {
 
       try {
         await _screen.ensurePermission();
+        _realScreenSize = await _screen.screenSize();
       } catch (e, st) {
         debugPrint('[AgentController] screen permission failed: $e\n$st');
         _addMessage(ChatRole.system, 'Screen capture unavailable: $e');
@@ -193,11 +204,27 @@ class AgentController extends ChangeNotifier {
 
   Future<void> _pushScreenshot() async {
     try {
-      final jpeg = await _screen.captureJpeg();
-      _live.sendImage(jpeg);
+      final shot = await _screen.captureJpeg();
+      _lastScreenshotSize = (width: shot.width, height: shot.height);
+      _live.sendImage(shot.bytes);
     } catch (e) {
       _addMessage(ChatRole.system, 'Screenshot failed: $e');
     }
+  }
+
+  /// Gemini's move_mouse/click/drag coordinates are relative to the last
+  /// screenshot it was shown, which is downscaled from the real screen -
+  /// this maps them back into real screen coordinates before they reach
+  /// SystemControlService. Falls back to passing the coordinates through
+  /// unscaled if either size isn't known yet.
+  (int, int) _toScreenCoords(int x, int y) {
+    final shot = _lastScreenshotSize;
+    final real = _realScreenSize;
+    if (shot == null || real == null) return (x, y);
+    return (
+      (x * real.width / shot.width).round(),
+      (y * real.height / shot.height).round(),
+    );
   }
 
   Future<void> _handleFunctionCall(GeminiFunctionCall call) async {
@@ -205,20 +232,28 @@ class AgentController extends ChangeNotifier {
     try {
       switch (call.name) {
         case 'take_screenshot':
-          final jpeg = await _screen.captureJpeg();
-          _live.sendImage(jpeg);
+          final shot = await _screen.captureJpeg();
+          _lastScreenshotSize = (width: shot.width, height: shot.height);
+          _live.sendImage(shot.bytes);
           result = {'result': 'screenshot captured and sent'};
 
         case 'move_mouse':
-          final x = call.args['x'] as int;
-          final y = call.args['y'] as int;
+          final (x, y) = _toScreenCoords(
+            call.args['x'] as int,
+            call.args['y'] as int,
+          );
           await _system.moveMouse(x, y);
           _logAction('move_mouse($x, $y)');
           result = {'result': 'ok'};
 
         case 'click':
-          final x = call.args['x'] as int?;
-          final y = call.args['y'] as int?;
+          final rawX = call.args['x'] as int?;
+          final rawY = call.args['y'] as int?;
+          int? x;
+          int? y;
+          if (rawX != null && rawY != null) {
+            (x, y) = _toScreenCoords(rawX, rawY);
+          }
           final button = call.args['button'] as String? ?? 'left';
           final doubleClick = call.args['double_click'] as bool? ?? false;
           await _system.click(x: x, y: y, button: button, doubleClick: doubleClick);
@@ -226,10 +261,14 @@ class AgentController extends ChangeNotifier {
           result = {'result': 'ok'};
 
         case 'drag':
-          final sx = call.args['start_x'] as int;
-          final sy = call.args['start_y'] as int;
-          final ex = call.args['end_x'] as int;
-          final ey = call.args['end_y'] as int;
+          final (sx, sy) = _toScreenCoords(
+            call.args['start_x'] as int,
+            call.args['start_y'] as int,
+          );
+          final (ex, ey) = _toScreenCoords(
+            call.args['end_x'] as int,
+            call.args['end_y'] as int,
+          );
           await _system.drag(sx, sy, ex, ey);
           _logAction('drag($sx,$sy -> $ex,$ey)');
           result = {'result': 'ok'};

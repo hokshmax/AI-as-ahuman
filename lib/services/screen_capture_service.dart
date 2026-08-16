@@ -30,7 +30,10 @@ class ScreenCaptureService {
     }
   }
 
-  Future<Uint8List> captureJpeg() async {
+  /// Captures the screen and returns the JPEG bytes plus its exact pixel
+  /// dimensions - callers need those to convert coordinates Gemini gives
+  /// (relative to this image) back into real screen coordinates.
+  Future<({Uint8List bytes, int width, int height})> captureJpeg() async {
     final dir = await getTemporaryDirectory();
     final path = '${dir.path}/screenshot_${_uuid.v4()}.png';
 
@@ -61,14 +64,18 @@ class ScreenCaptureService {
         ? img.copyResize(decoded, width: AppConfig.screenshotMaxWidth)
         : decoded;
 
-    return Uint8List.fromList(
-      img.encodeJpg(resized, quality: AppConfig.screenshotJpegQuality),
+    return (
+      bytes: Uint8List.fromList(
+        img.encodeJpg(resized, quality: AppConfig.screenshotJpegQuality),
+      ),
+      width: resized.width,
+      height: resized.height,
     );
   }
 
-  /// Physical screen size in pixels, used to keep mouse coordinates that
-  /// Gemini reasons about (from the possibly-downscaled screenshot)
-  /// consistent with the real display.
+  /// The screen size in the same coordinate space SystemControlService's
+  /// mouse calls operate in - logical points on macOS (what NSScreen and
+  /// cliclick both use), not necessarily raw Retina pixel dimensions.
   Future<({int width, int height})> screenSize() async {
     final display = await screenRetriever.getPrimaryDisplay();
     final size = display.size;

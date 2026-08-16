@@ -21,17 +21,26 @@ class ToolDefinitions {
     {
       'name': 'move_mouse',
       'description':
-          'Move the mouse cursor to an absolute position on screen.',
+          'Move the mouse cursor to an absolute position on screen. '
+          'Coordinates are pixel positions within the most recent '
+          'screenshot you were shown (0,0 = its top-left corner) - they '
+          'are automatically converted to real screen coordinates, so '
+          'always measure against the screenshot image itself, not a '
+          'guess at physical screen resolution.',
       'parameters': {
         'type': 'OBJECT',
         'properties': {
           'x': {
             'type': 'INTEGER',
-            'description': 'Horizontal pixel coordinate, 0 = left edge.',
+            'description':
+                'Horizontal pixel coordinate within the last screenshot, '
+                '0 = left edge.',
           },
           'y': {
             'type': 'INTEGER',
-            'description': 'Vertical pixel coordinate, 0 = top edge.',
+            'description':
+                'Vertical pixel coordinate within the last screenshot, '
+                '0 = top edge.',
           },
         },
         'required': ['x', 'y'],
@@ -45,8 +54,16 @@ class ToolDefinitions {
       'parameters': {
         'type': 'OBJECT',
         'properties': {
-          'x': {'type': 'INTEGER', 'description': 'Optional X to move to first.'},
-          'y': {'type': 'INTEGER', 'description': 'Optional Y to move to first.'},
+          'x': {
+            'type': 'INTEGER',
+            'description':
+                'Optional X to move to first, in last-screenshot pixels.',
+          },
+          'y': {
+            'type': 'INTEGER',
+            'description':
+                'Optional Y to move to first, in last-screenshot pixels.',
+          },
           'button': {
             'type': 'STRING',
             'enum': ['left', 'right', 'middle'],
@@ -63,7 +80,8 @@ class ToolDefinitions {
     {
       'name': 'drag',
       'description': 'Press the mouse button at one point and release it '
-          'at another, e.g. to drag a slider or select text.',
+          'at another, e.g. to drag a slider or select text. All '
+          'coordinates are pixel positions within the last screenshot.',
       'parameters': {
         'type': 'OBJECT',
         'properties': {
