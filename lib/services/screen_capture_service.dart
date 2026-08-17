@@ -31,25 +31,23 @@ class ScreenCaptureService {
     }
   }
 
-  /// Captures the screen and returns the JPEG bytes plus its exact pixel
-  /// dimensions - callers need those to convert coordinates Gemini gives
-  /// (relative to this image) back into real screen coordinates.
+  /// Captures the screen and returns the clean JPEG bytes plus its exact
+  /// pixel dimensions - callers need those to convert coordinates Gemini
+  /// gives (relative to this image) back into real screen coordinates.
   ///
-  /// When the real screen size is passed, a labeled coordinate grid is
-  /// drawn on top (see _drawCoordinateGrid) so Gemini can read off nearby
-  /// gridline labels instead of estimating raw pixel positions from
-  /// scratch - testing showed unaided estimates land wildly off on
-  /// anything but the largest, most obvious targets.
-  ///
-  /// When cursorX/cursorY are also passed (the real-screen coordinates
-  /// last given to SystemControlService.moveMouse/click/drag), a marker
-  /// is drawn there too - the actual OS cursor isn't reliably visible in
-  /// captures, so this gives Gemini a real, verifiable answer to "where
-  /// is the cursor right now" instead of it having to assume its last
-  /// move landed correctly. This is what lets it work the way a person
-  /// does: move, look, check whether the cursor is actually on target,
-  /// nudge and recheck if not, only then click.
-  Future<({Uint8List bytes, int width, int height})> captureJpeg({
+  /// When the real screen size is passed, a *second* JPEG is also
+  /// returned (`overlayBytes`) - the same capture, but with a labeled
+  /// coordinate grid (see _drawCoordinateGrid) and, if cursorX/cursorY
+  /// are given, a cursor marker (_drawCursorMarker) drawn on it. This is
+  /// deliberately a separate image rather than drawn onto the one and
+  /// only screenshot: gridlines/labels drawn directly over the real
+  /// image can literally paint over the exact pixels of a small target
+  /// (an icon, a checkbox), which would make locating it *harder*, not
+  /// easier. Sending both lets Gemini identify the target precisely in
+  /// the clean image, then cross-reference the gridded one for its
+  /// coordinates.
+  Future<({Uint8List bytes, Uint8List? overlayBytes, int width, int height})>
+      captureJpeg({
     int? screenWidth,
     int? screenHeight,
     int? cursorX,
@@ -91,9 +89,15 @@ class ScreenCaptureService {
         ? img.copyResize(decoded, width: AppConfig.screenshotMaxWidth)
         : decoded;
 
+    final jpegBytes = Uint8List.fromList(
+      img.encodeJpg(resized, quality: AppConfig.screenshotJpegQuality),
+    );
+
+    Uint8List? overlayBytes;
     if (screenWidth != null && screenHeight != null) {
+      final overlay = resized.clone();
       _drawCoordinateGrid(
-        resized,
+        overlay,
         realLeft: 0,
         realTop: 0,
         realRight: screenWidth,
@@ -103,24 +107,32 @@ class ScreenCaptureService {
 
       if (cursorX != null && cursorY != null) {
         _drawCursorMarker(
-          resized,
+          overlay,
           realX: cursorX,
           realY: cursorY,
           realWidth: screenWidth,
           realHeight: screenHeight,
         );
       }
-    }
 
-    final jpegBytes = Uint8List.fromList(
-      img.encodeJpg(resized, quality: AppConfig.screenshotJpegQuality),
-    );
+      overlayBytes = Uint8List.fromList(
+        img.encodeJpg(overlay, quality: AppConfig.screenshotJpegQuality),
+      );
+    }
 
     if (kDebugMode) {
       await _saveDebugCopy(jpegBytes);
+      if (overlayBytes != null) {
+        await _saveDebugCopy(overlayBytes, suffix: '_grid');
+      }
     }
 
-    return (bytes: jpegBytes, width: resized.width, height: resized.height);
+    return (
+      bytes: jpegBytes,
+      overlayBytes: overlayBytes,
+      width: resized.width,
+      height: resized.height,
+    );
   }
 
   /// Draws gridlines every `step` real-screen pixels across

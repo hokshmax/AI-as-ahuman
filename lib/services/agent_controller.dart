@@ -215,7 +215,13 @@ class AgentController extends ChangeNotifier {
         cursorX: _system.lastMousePosition?.x,
         cursorY: _system.lastMousePosition?.y,
       );
+      // Clean image first (nothing drawn over the real UI), then the
+      // grid/cursor overlay as a separate reference image - see
+      // ScreenCaptureService.captureJpeg for why these aren't merged.
       _live.sendImage(shot.bytes);
+      if (shot.overlayBytes != null) {
+        _live.sendImage(shot.overlayBytes!);
+      }
     } catch (e) {
       _addMessage(ChatRole.system, 'Screenshot failed: $e');
     }
@@ -275,6 +281,9 @@ class AgentController extends ChangeNotifier {
             cursorY: _system.lastMousePosition?.y,
           );
           _live.sendImage(shot.bytes);
+          if (shot.overlayBytes != null) {
+            _live.sendImage(shot.overlayBytes!);
+          }
           result = {'result': 'screenshot captured and sent'};
 
         case 'find_ui_element':

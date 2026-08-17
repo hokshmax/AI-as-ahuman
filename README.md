@@ -147,17 +147,23 @@ were all verified correct) - it's that estimating a raw pixel position
 with nothing to anchor against is genuinely hard for the model, even
 for moderately-sized targets, and it had no way to check whether a
 move_mouse actually landed correctly before committing to a click.
-Every screenshot now carries two overlays
-(`ScreenCaptureService._drawCoordinateGrid` /
-`_drawCursorMarker`, both purely visual aids drawn by the app, not part
-of the real screen):
 
-- A magenta grid, each line labeled with its real screen coordinate,
-  so Gemini can read off nearby labels and interpolate an exact
-  position instead of guessing blind.
-- A cyan crosshair at `SystemControlService.lastMousePosition` (the
-  real coordinates last given to moveMouse/click/drag), labeled
-  `CURSOR (x,y)`.
+Every screenshot (`ScreenCaptureService.captureJpeg`) is sent as **two
+separate images**, in order: the clean capture first, then a second
+copy with a magenta grid and (if the cursor has moved) a cyan crosshair
+drawn on it (`_drawCoordinateGrid` / `_drawCursorMarker`). These used to
+be merged into one image, but gridlines/labels drawn directly over the
+real screenshot can paint over the exact pixels of a small target -
+actively hurting precision on the very targets that need it most.
+Sending both lets Gemini identify the target precisely in the clean
+image, then cross-reference the gridded one just for coordinates:
+
+- The magenta grid, each line labeled with its real screen coordinate,
+  lets Gemini read off nearby labels and interpolate an exact position
+  instead of guessing blind.
+- The cyan crosshair, at `SystemControlService.lastMousePosition` (the
+  real coordinates last given to moveMouse/click/drag) and labeled
+  `CURSOR (x,y)`, shows where the cursor actually is.
 
 `move_mouse` doesn't jump the cursor straight to its target in one
 instant hop either - `AgentController._moveMouseObserved()` moves it in

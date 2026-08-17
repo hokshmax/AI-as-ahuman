@@ -11,12 +11,13 @@ class ToolDefinitions {
       'name': 'take_screenshot',
       'description':
           'Force an immediate, guaranteed-fresh capture of the current '
-          'screen, rather than waiting for the next automatic frame '
+          'screen (a clean image, then a coordinate-gridded reference '
+          'image), rather than waiting for the next automatic frame '
           '(you are already shown the screen continuously on a timer). '
           'If the cursor has moved since the last frame, its position '
-          'is marked with a cyan crosshair labeled "CURSOR (x,y)". Use '
-          'this when you specifically need to confirm something right '
-          'now before your next decision.',
+          'is marked with a cyan crosshair labeled "CURSOR (x,y)" on '
+          'the gridded image. Use this when you specifically need to '
+          'confirm something right now before your next decision.',
       'parameters': {
         'type': 'OBJECT',
         'properties': <String, dynamic>{},
@@ -201,12 +202,14 @@ Rules:
   a screenshot, and is far more reliable when it finds a match. Only
   fall back to reading the screenshot's coordinate grid and verifying
   with move_mouse/take_screenshot if find_ui_element returns no match.
-- Every screenshot has a magenta coordinate grid drawn over it, with
-  each gridline labeled with its real-screen pixel value. This is a
-  reference overlay, not part of the actual UI - use it to read off the
-  nearest labels around your target and interpolate an exact position,
-  rather than estimating a raw pixel coordinate with nothing to anchor
-  against.
+- Each frame arrives as two images, in order: first a clean screenshot
+  (exactly what the user sees, nothing drawn on it), then a second
+  version with a magenta coordinate grid overlaid, each gridline
+  labeled with its real-screen pixel value. Identify your target
+  precisely in the clean image - the grid can visually cover small
+  targets, so don't try to locate anything in the gridded one - then
+  switch to the gridded image just to read off the nearest labels
+  around that same spot and interpolate an exact position.
 - To open/launch an application, prefer the OS app launcher over
   clicking a Dock/taskbar icon: on macOS press_key "cmd+space" (opens
   Spotlight), type_text the app name, then press_key "Return" - it's
