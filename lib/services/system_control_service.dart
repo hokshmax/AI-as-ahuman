@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 /// Drives the real mouse and keyboard so Gemini's tool calls turn into
@@ -200,7 +201,16 @@ class SystemControlService {
   }
 
   Future<ProcessResult> _run(String executable, List<String> args) async {
-    final result = await Process.run(executable, args);
+    // A hung external process (e.g. a permission dialog silently
+    // waiting for a click) would otherwise block this tool call - and
+    // everything after it - forever, since nothing else can proceed
+    // until the awaited call resolves. Fail fast instead.
+    final result = await Process.run(executable, args).timeout(
+      const Duration(seconds: 8),
+      onTimeout: () => throw TimeoutException(
+        'Command timed out after 8s: $executable ${args.join(' ')}',
+      ),
+    );
     if (result.exitCode != 0) {
       throw StateError(
         'Command failed: $executable ${args.join(' ')}\n${result.stderr}',

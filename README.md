@@ -129,8 +129,11 @@ of the real screen):
 
 `move_mouse` doesn't jump the cursor straight to its target in one
 instant hop either - `AgentController._moveMouseObserved()` moves it in
-4 interpolated steps, sending a fresh frame (with the crosshair) after
-each one. This is the closest practical equivalent to a live video
+2 interpolated steps, sending a fresh frame (with the crosshair) after
+each one - kept low since every step is a real screenshot round trip
+and each one is also a point where a hung native call could stall the
+whole session (see "Timeouts" below). This is the closest practical
+equivalent to a live video
 stream within the current architecture: cliclick/xdotool teleport the
 cursor with nothing to watch by default, so this manufactures an actual
 "travel" Gemini can observe frame-by-frame and react to mid-movement,
@@ -138,6 +141,20 @@ rather than only ever getting a single before/after pair. The system
 prompt tells it to watch the cursor arrive and call move_mouse again to
 correct if the final position isn't quite on target, repeating until it
 is, before clicking.
+
+### Timeouts
+
+Testing surfaced the app freezing mid-action (stuck partway through a
+multi-step move_mouse) with no recovery. Every real subprocess call
+(`SystemControlService._run`, e.g. `cliclick`) and every native screen
+capture (`ScreenCaptureService.captureJpeg`) is awaited with no timeout
+by default - if one hangs (a permission dialog silently waiting for a
+click, a stuck process), the tool call blocking on it, and the whole
+session behind it, would wait forever with nothing recovering
+automatically. Both now have an 8-second timeout and throw
+`TimeoutException` instead of hanging, which `AgentController`'s
+existing per-tool-call try/catch turns into a normal error result back
+to Gemini - the session stays alive and responsive instead of freezing.
 
 ## Testing in GitHub Codespaces
 

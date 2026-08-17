@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -57,11 +58,17 @@ class ScreenCaptureService {
     final dir = await getTemporaryDirectory();
     final path = '${dir.path}/screenshot_${_uuid.v4()}.png';
 
-    final captured = await ScreenCapturer.instance.capture(
-      mode: CaptureMode.screen,
-      imagePath: path,
-      silent: true,
-    );
+    // A hung native capture call (e.g. a permission dialog silently
+    // waiting for a click) would otherwise block this - and every tool
+    // call queued behind it - forever. Fail fast instead.
+    final captured = await ScreenCapturer.instance
+        .capture(mode: CaptureMode.screen, imagePath: path, silent: true)
+        .timeout(
+          const Duration(seconds: 8),
+          onTimeout: () => throw TimeoutException(
+            'Screen capture timed out after 8s.',
+          ),
+        );
 
     final file = File(captured?.imagePath ?? path);
     if (!await file.exists()) {

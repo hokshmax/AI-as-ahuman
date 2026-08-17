@@ -222,7 +222,7 @@ class AgentController extends ChangeNotifier {
   /// and react mid-movement, rather than only ever seeing a single
   /// before/after pair.
   Future<void> _moveMouseObserved(int targetX, int targetY) async {
-    const steps = 4;
+    const steps = 2;
     final start = _system.lastMousePosition ?? (x: targetX, y: targetY);
     for (var i = 1; i <= steps; i++) {
       final t = i / steps;
