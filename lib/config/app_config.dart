@@ -32,11 +32,14 @@ class AppConfig {
   static const int outputSampleRate = 24000;
 
   /// Screenshots are downscaled and compressed before upload to keep
-  /// each round trip small - Gemini asks for a fresh one via the
-  /// take_screenshot tool whenever it actually needs to look, rather
-  /// than one being pushed continuously on a timer. Testing showed
-  /// 768px/q55 was too lossy for precisely locating small targets (Dock
-  /// icons, toolbar buttons); trading some speed for clearer images.
+  /// each round trip small. Testing showed 768px/q55 was too lossy for
+  /// precisely locating small targets (Dock icons, toolbar buttons);
+  /// trading some speed for clearer images.
   static const int screenshotMaxWidth = 1280;
   static const int screenshotJpegQuality = 80;
+
+  /// How often a fresh screenshot is pushed automatically, so Gemini has
+  /// a continuously updated view of the screen - genuine screen sharing
+  /// rather than only seeing a frame when it explicitly asks for one.
+  static const Duration screenshotInterval = Duration(seconds: 2);
 }

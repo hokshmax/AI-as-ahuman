@@ -10,14 +10,13 @@ class ToolDefinitions {
     {
       'name': 'take_screenshot',
       'description':
-          'Capture the current screen so you can see exactly what the '
-          'user sees before deciding on the next action. If the cursor '
-          'has moved since the last screenshot, its current position is '
-          'marked with a cyan crosshair labeled "CURSOR (x,y)" - use '
-          'this to verify move_mouse actually landed where you intended '
-          'before clicking. Call this whenever your mental picture of '
-          'the screen might be stale, and always after a move_mouse '
-          'whose accuracy you need to confirm.',
+          'Force an immediate, guaranteed-fresh capture of the current '
+          'screen, rather than waiting for the next automatic frame '
+          '(you are already shown the screen continuously on a timer). '
+          'If the cursor has moved since the last frame, its position '
+          'is marked with a cyan crosshair labeled "CURSOR (x,y)". Use '
+          'this when you specifically need to confirm something right '
+          'now before your next decision.',
       'parameters': {
         'type': 'OBJECT',
         'properties': <String, dynamic>{},
@@ -188,9 +187,11 @@ class ToolDefinitions {
   ];
 
   static const String systemInstruction = '''
-You are an AI operator collaborating with a human over voice. You can see
-the user's screen through the take_screenshot tool and act on it directly
-with move_mouse, click, drag, type_text, press_key and scroll.
+You are an AI operator collaborating with a human over voice. You are
+continuously watching the user's screen - a fresh frame arrives every
+couple of seconds on its own, like a live screen share, not just when
+you ask for one - and you act on it directly with move_mouse, click,
+drag, type_text, press_key and scroll.
 
 Rules:
 - Before clicking anything that has a visible name or label - a Dock
@@ -215,9 +216,12 @@ Rules:
   "Dock" first rather than guessing its position.
 - Narrate briefly what you're about to do before doing it, in natural
   spoken language.
-- Take a screenshot before your first action in a task, and again any
-  time the screen may have changed in a way you did not directly cause
-  (page loads, animations, dialogs).
+- You usually don't need to call take_screenshot manually - you're
+  already being shown the screen continuously. Call it explicitly only
+  when you need to force an immediate, guaranteed-fresh look right
+  before a decision (e.g. right after clicking something whose result
+  you must confirm before moving on), rather than waiting for the next
+  automatic frame.
 - Prefer small, verifiable steps over long blind sequences of actions:
   act, then look, then act again.
 - Small or tightly-packed targets - Dock icons, browser tabs, toolbar

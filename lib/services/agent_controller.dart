@@ -50,6 +50,11 @@ class AgentController extends ChangeNotifier {
   bool assistantSpeaking = false;
   Timer? _unmuteTimer;
 
+  /// Pushes a fresh screenshot on AppConfig.screenshotInterval so Gemini
+  /// has a continuously updated view - genuine screen sharing rather
+  /// than only ever seeing a frame it explicitly requested.
+  Timer? _screenshotTimer;
+
   final List<StreamSubscription<dynamic>> _subs = [];
 
   Future<void> start() async {
@@ -104,11 +109,6 @@ class AgentController extends ChangeNotifier {
         }
       }
 
-      // One screenshot to establish context; after that Gemini decides
-      // when it needs a fresh look via the take_screenshot tool instead
-      // of us pushing one on a timer - that was adding a growing image
-      // to every turn for the whole session and was the main source of
-      // slow responses.
       await _pushScreenshot();
 
       if (!_live.isConnected) {
@@ -120,6 +120,11 @@ class AgentController extends ChangeNotifier {
         notifyListeners();
         return;
       }
+
+      _screenshotTimer = Timer.periodic(
+        AppConfig.screenshotInterval,
+        (_) => _pushScreenshot(),
+      );
 
       state = SessionState.live;
       _addMessage(
@@ -136,6 +141,8 @@ class AgentController extends ChangeNotifier {
 
   Future<void> stop() async {
     _unmuteTimer?.cancel();
+    _screenshotTimer?.cancel();
+    _screenshotTimer = null;
     assistantSpeaking = false;
     for (final s in _subs) {
       await s.cancel();

@@ -36,12 +36,22 @@ speaker ◀──PCM16── (audio out)                         │
   shells out to the best native automation tool per OS (see below) since
   there is no single cross-platform Dart API for synthetic input.
 - **`AgentController`** is the glue: it wires mic audio to the socket,
-  socket audio to the speakers, sends one screenshot to establish
-  context at session start (Gemini requests further ones itself via the
-  `take_screenshot` tool as needed - continuously pushing one on a timer
-  was adding a growing image to every turn and made responses slow), and
-  dispatches each `toolCall` to `SystemControlService`, reporting the
-  result back to Gemini so it can decide what to do next.
+  socket audio to the speakers, pushes a fresh screenshot on
+  `AppConfig.screenshotInterval` (genuine screen sharing - Gemini sees
+  a continuously updated view, not just a frame when it explicitly
+  asks; `take_screenshot` still exists for forcing an immediate one),
+  and dispatches each `toolCall` to `SystemControlService`, reporting
+  the result back to Gemini so it can decide what to do next.
+
+  This was tried once before and reverted for slowing responses down -
+  a growing image added to every turn for the whole session. It's back
+  because that's genuinely what was asked for (continuous screen
+  sharing, not per-action snapshots), and the base screenshot quality
+  is meaningfully better now (1280px/q80 vs the original 768px/q55), so
+  the trade-off is worth re-evaluating. If responses feel too slow
+  again, `AppConfig.screenshotInterval` is the first thing to lengthen
+  (or drop back to on-demand-only by removing the periodic timer in
+  `AgentController.start()`).
 
 ### Automatic self-interruption prevention
 
