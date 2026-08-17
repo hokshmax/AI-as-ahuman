@@ -56,6 +56,101 @@ class SystemControlService {
     throw UnsupportedError('screenSize is not supported on this platform.');
   }
 
+  /// macOS only: the name of the frontmost application's process, for
+  /// use as the default `app` in findUiElement when the caller doesn't
+  /// specify one.
+  Future<String> frontmostProcessName() async {
+    final result = await _run('osascript', [
+      '-e',
+      'tell application "System Events" to name of first process whose frontmost is true',
+    ]);
+    return result.stdout.toString().trim();
+  }
+
+  /// macOS only: asks the Accessibility API directly for the real-screen
+  /// center position of a UI element whose name or description contains
+  /// [searchText] (case-insensitive), searching [process]'s UI element
+  /// tree. This is the OS's own exact knowledge of where a button, Dock
+  /// icon, tab or menu item actually is - far more reliable than
+  /// estimating a position from a screenshot, when the element can be
+  /// found this way. Returns null if nothing matched (bounded search:
+  /// depth 5, 400 elements visited, so a "not found" can also mean the
+  /// tree was too deep/large rather than the element not existing).
+  Future<({int x, int y})?> findUiElement({
+    required String process,
+    required String searchText,
+  }) async {
+    if (!Platform.isMacOS) {
+      throw UnsupportedError('findUiElement is only implemented on macOS.');
+    }
+    final escapedProcess = _escapeAppleScriptString(process);
+    final escapedSearch = _escapeAppleScriptString(searchText);
+
+    final script = '''
+      property elementCount : 0
+
+      on searchInElement(elem, searchText, depth)
+        if depth > 5 then return "NOTFOUND"
+        set elementCount to elementCount + 1
+        if elementCount > 400 then return "NOTFOUND"
+        try
+          set elemName to ""
+          try
+            set elemName to (name of elem) as text
+          end try
+          set elemDesc to ""
+          try
+            set elemDesc to (description of elem) as text
+          end try
+          set isMatch to false
+          ignoring case
+            if elemName contains searchText or elemDesc contains searchText then
+              set isMatch to true
+            end if
+          end ignoring
+          if isMatch then
+            try
+              set p to position of elem
+              set s to size of elem
+              set px to (item 1 of p) + ((item 1 of s) / 2)
+              set py to (item 2 of p) + ((item 2 of s) / 2)
+              return (px as integer as text) & "," & (py as integer as text)
+            end try
+          end if
+        end try
+        try
+          set kids to UI elements of elem
+          repeat with kid in kids
+            set r to my searchInElement(kid, searchText, depth + 1)
+            if r is not "NOTFOUND" then return r
+          end repeat
+        end try
+        return "NOTFOUND"
+      end searchInElement
+
+      tell application "System Events"
+        if not (exists process "$escapedProcess") then return "NOTFOUND"
+        tell process "$escapedProcess"
+          return my searchInElement(it, "$escapedSearch", 0)
+        end tell
+      end tell
+    ''';
+
+    final result = await _run('osascript', ['-e', script]);
+    final output = result.stdout.toString().trim();
+    if (output == 'NOTFOUND' || output.isEmpty) return null;
+
+    final parts = output.split(',');
+    if (parts.length != 2) return null;
+    final x = int.tryParse(parts[0].trim());
+    final y = int.tryParse(parts[1].trim());
+    if (x == null || y == null) return null;
+    return (x: x, y: y);
+  }
+
+  String _escapeAppleScriptString(String s) =>
+      s.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
+
   Future<void> moveMouse(int x, int y) async {
     if (Platform.isLinux) {
       await _run('xdotool', ['mousemove', '$x', '$y']);

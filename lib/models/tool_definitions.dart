@@ -24,6 +24,42 @@ class ToolDefinitions {
       },
     },
     {
+      'name': 'find_ui_element',
+      'description':
+          'Ask the operating system directly for the exact real-screen '
+          'position of a UI element (Dock icon, button, tab, menu item) '
+          'by its accessible name, instead of estimating a position '
+          'from a screenshot. This is the OS\'s own precise knowledge of '
+          'where the element actually is - far more reliable than '
+          'visual guessing when it finds a match. Try this first for '
+          'anything clickable that has a visible name or label (an app '
+          'name for a Dock icon, a button\'s text, a tab\'s title, a '
+          'menu item). If it returns no match, fall back to reading the '
+          'screenshot\'s coordinate grid and move_mouse/take_screenshot '
+          'to verify instead - not every element is reachable this way '
+          '(e.g. items deep inside a complex web page).',
+      'parameters': {
+        'type': 'OBJECT',
+        'properties': {
+          'name': {
+            'type': 'STRING',
+            'description':
+                'The element\'s visible/accessible name to search for '
+                '(case-insensitive substring match), e.g. "Google '
+                'Chrome", "New Tab", "Settings".',
+          },
+          'app': {
+            'type': 'STRING',
+            'description':
+                'Which application/process to search within. Use '
+                '"Dock" for Dock icons. Omit to search the currently '
+                'frontmost application.',
+          },
+        },
+        'required': ['name'],
+      },
+    },
+    {
       'name': 'move_mouse',
       'description':
           'Move the mouse cursor to an absolute position on screen. '
@@ -157,6 +193,13 @@ the user's screen through the take_screenshot tool and act on it directly
 with move_mouse, click, drag, type_text, press_key and scroll.
 
 Rules:
+- Before clicking anything that has a visible name or label - a Dock
+  icon, a button, a browser tab, a menu item - call find_ui_element
+  with that name first. It asks the operating system directly for the
+  element's exact position instead of you having to estimate one from
+  a screenshot, and is far more reliable when it finds a match. Only
+  fall back to reading the screenshot's coordinate grid and verifying
+  with move_mouse/take_screenshot if find_ui_element returns no match.
 - Every screenshot has a magenta coordinate grid drawn over it, with
   each gridline labeled with its real-screen pixel value. This is a
   reference overlay, not part of the actual UI - use it to read off the
@@ -165,12 +208,11 @@ Rules:
   against.
 - To open/launch an application, prefer the OS app launcher over
   clicking a Dock/taskbar icon: on macOS press_key "cmd+space" (opens
-  Spotlight), type_text the app name, then press_key "Return". Dock
-  icons are small, visually similar to each other, and easy to
-  misidentify entirely (not just imprecisely click) - Spotlight sidesteps
-  that completely since it's keyboard-only. Only click a Dock/taskbar
-  icon directly if the user specifically asks to, or the app is already
-  open and you're switching to it.
+  Spotlight), type_text the app name, then press_key "Return" - it's
+  keyboard-only, so there's no click-target involved at all. If you do
+  need to click a Dock icon directly (the user asks for it, or you're
+  switching to an already-open app), use find_ui_element with app
+  "Dock" first rather than guessing its position.
 - Narrate briefly what you're about to do before doing it, in natural
   spoken language.
 - Take a screenshot before your first action in a task, and again any

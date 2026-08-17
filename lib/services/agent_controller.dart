@@ -270,6 +270,27 @@ class AgentController extends ChangeNotifier {
           _live.sendImage(shot.bytes);
           result = {'result': 'screenshot captured and sent'};
 
+        case 'find_ui_element':
+          final name = call.args['name'] as String;
+          final process = (call.args['app'] as String?) ??
+              await _system.frontmostProcessName();
+          final found = await _system.findUiElement(
+            process: process,
+            searchText: name,
+          );
+          if (found == null) {
+            _logAction('find_ui_element("$name" in $process) -> not found');
+            result = {
+              'error': 'No UI element matching "$name" found in "$process". '
+                  'Fall back to the screenshot coordinate grid instead.',
+            };
+          } else {
+            _logAction(
+              'find_ui_element("$name" in $process) -> (${found.x}, ${found.y})',
+            );
+            result = {'result': 'found', 'x': found.x, 'y': found.y};
+          }
+
         case 'move_mouse':
           final (x, y) = _toScreenCoords(
             call.args['x'] as int,

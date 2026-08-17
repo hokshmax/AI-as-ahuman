@@ -104,8 +104,30 @@ display" may not agree (e.g. if capture spans all displays), which
 would reintroduce coordinate drift - not yet handled.
 
 The tools Gemini can call are declared in
-`lib/models/tool_definitions.dart`: `take_screenshot`, `move_mouse`,
-`click`, `drag`, `type_text`, `press_key`, `scroll`.
+`lib/models/tool_definitions.dart`: `take_screenshot`, `find_ui_element`,
+`move_mouse`, `click`, `drag`, `type_text`, `press_key`, `scroll`.
+
+### Accessibility-based element lookup (`find_ui_element`, macOS only)
+
+Vision-based coordinate guessing (grid overlay, cursor marker, all
+below) helps, but it's still guessing. `find_ui_element` sidesteps that
+entirely for anything with a name: `SystemControlService
+.findUiElement()` asks macOS's Accessibility API (via `System Events`)
+directly for the exact real-screen position of a UI element - a Dock
+icon, button, tab, menu item - by searching its name/description,
+instead of Gemini estimating a pixel position from a screenshot. The
+OS already knows precisely where every element is; there's no reason
+to guess when this works. The search recurses through the target
+process's UI element tree (bounded to depth 5 / 400 elements visited,
+so it fails safely rather than hanging on a huge tree like a complex
+web page) and returns the center of the first name/description match.
+The system prompt tells Gemini to try this before any click on a named
+element, falling back to the grid overlay only when it returns no
+match.
+
+Not implemented on Linux/Windows yet - `findUiElement` throws
+`UnsupportedError` there, so `find_ui_element` calls return an error
+result Gemini falls back from automatically.
 
 ### Coordinate grid + cursor marker
 
