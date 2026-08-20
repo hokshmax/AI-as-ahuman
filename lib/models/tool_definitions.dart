@@ -60,6 +60,40 @@ class ToolDefinitions {
       },
     },
     {
+      'name': 'element_at_position',
+      'description':
+          'Ask the operating system what UI element (if any) sits '
+          'exactly at a given real-screen position - the reverse of '
+          'find_ui_element. Use this right after move_mouse to verify '
+          'precisely what the cursor landed on before clicking, as a '
+          'more certain alternative to checking a screenshot (no visual '
+          'judgment needed - either the OS confirms an element there, '
+          'or it doesn\'t). Returns the element\'s role (e.g. '
+          '"AXButton", "AXMenuItem", "AXDockItem"), name and '
+          'description if something specific was identified there.',
+      'parameters': {
+        'type': 'OBJECT',
+        'properties': {
+          'x': {
+            'type': 'INTEGER',
+            'description': 'Real-screen X position to check.',
+          },
+          'y': {
+            'type': 'INTEGER',
+            'description': 'Real-screen Y position to check.',
+          },
+          'app': {
+            'type': 'STRING',
+            'description':
+                'Which application/process to search within. Use '
+                '"Dock" for Dock icons. Omit to search the currently '
+                'frontmost application.',
+          },
+        },
+        'required': ['x', 'y'],
+      },
+    },
+    {
       'name': 'move_mouse',
       'description':
           'Move the mouse cursor to an absolute position on screen. '
@@ -202,6 +236,12 @@ Rules:
   a screenshot, and is far more reliable when it finds a match. Only
   fall back to reading the screenshot's coordinate grid and verifying
   with move_mouse/take_screenshot if find_ui_element returns no match.
+- After a move_mouse whose landing spot you're not certain of, prefer
+  calling element_at_position at that same (x, y) over inspecting a
+  screenshot - it asks the OS directly what's actually there, rather
+  than you having to visually judge it. If it names the element you
+  expected, you're on target; if it names something else or nothing,
+  correct your position before clicking.
 - Each frame arrives as two images, in order: first a clean screenshot
   (exactly what the user sees, nothing drawn on it), then a second
   version with a magenta coordinate grid overlaid, each gridline
