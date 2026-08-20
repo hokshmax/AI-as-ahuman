@@ -17,7 +17,12 @@ build/
 .metadata
 
 # Generated platform folders (run `flutter create .` to regenerate)
-/android/
+# android/ is deliberately NOT excluded, unlike the others: unlike macOS's
+# small entitlements/Info.plist tweaks, Android support requires real
+# hand-written native code (AiControlAccessibilityService.kt,
+# MainActivity.kt's MethodChannel wiring) that `flutter create` doesn't
+# regenerate and that would otherwise have to be reapplied by hand after
+# every fresh scaffold. See README's Android setup section.
 /ios/
 /linux/
 /macos/

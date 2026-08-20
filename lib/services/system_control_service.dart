@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
+
 /// Drives the real mouse and keyboard so Gemini's tool calls turn into
 /// actual clicks and keystrokes on the desktop.
 ///
@@ -10,11 +12,25 @@ import 'dart:io';
 ///   - macOS:   cliclick (brew install cliclick) for mouse, AppleScript
 ///              "System Events" for keyboard
 ///   - Windows: PowerShell + a small inline C# shim over user32.dll
+///   - Android: no shell/subprocess model at all - a MethodChannel calls
+///     into a bundled AccessibilityService (AiControlAccessibilityService.kt)
+///     that dispatches taps/swipes/gestures and walks the accessibility
+///     node tree, the direct Android equivalent of macOS's System Events.
+///     There's no persistent mouse cursor on a touchscreen, so moveMouse
+///     is purely a visual "aim" marker there - see moveMouse's doc
+///     comment. Requires the user to manually enable the service under
+///     Settings -> Accessibility, same one-time manual step as macOS's
+///     Accessibility/Automation panels (see ensureAccessibilityPermission).
 class SystemControlService {
   /// The real-screen coordinates last passed to moveMouse/click/drag, so
   /// a screenshot can mark exactly where the cursor should now be - see
   /// AgentController, which draws this position onto every capture.
   ({int x, int y})? lastMousePosition;
+
+  /// Android only: talks to AiControlAccessibilityService via
+  /// MainActivity's MethodChannel handler. See the class doc comment.
+  static const MethodChannel _android =
+      MethodChannel('ai_as_ahuman/accessibility');
 
   /// macOS only: proactively triggers the OS's Accessibility and
   /// Automation permission prompts up front, at session start - the
@@ -40,6 +56,27 @@ class SystemControlService {
   /// will surface again, this time with a clear hint, the moment a real
   /// tool call needs it.
   Future<void> ensureAccessibilityPermission() async {
+    if (Platform.isAndroid) {
+      // Unlike macOS's implicit "make the call and get prompted" trick,
+      // Android flatly requires the user to manually flip the toggle
+      // under Settings -> Accessibility - there's no programmatic way
+      // to enable it (a deliberate Android security restriction, so a
+      // malicious app can't silently grant itself this level of
+      // control). The best this can do is check, and if it's off, open
+      // that settings screen directly so there's one less thing to
+      // hunt for.
+      final enabled =
+          await _android.invokeMethod<bool>('isServiceEnabled') ?? false;
+      if (!enabled) {
+        await _android.invokeMethod('openAccessibilitySettings');
+        throw StateError(
+          'Accessibility permission not granted yet - opened Settings -> '
+          'Accessibility for you. Find "AI as a Human", enable it, then '
+          'come back and start the session again.',
+        );
+      }
+      return;
+    }
     if (!Platform.isMacOS) return;
     try {
       await _run('osascript', [
@@ -65,7 +102,13 @@ class SystemControlService {
   /// so there's no risk of one reporting physical Retina pixels and the
   /// other logical points and silently scaling every click wrong.
   Future<({int width, int height})> screenSize() async {
-    if (Platform.isLinux) {
+    if (Platform.isAndroid) {
+      final size = await _android.invokeMapMethod<String, dynamic>('screenSize');
+      if (size == null) {
+        throw StateError('Could not get the screen size from Android.');
+      }
+      return (width: size['width'] as int, height: size['height'] as int);
+    } else if (Platform.isLinux) {
       final result = await _run('xdotool', ['getdisplaygeometry']);
       final parts = result.stdout.toString().trim().split(RegExp(r'\s+'));
       return (width: int.parse(parts[0]), height: int.parse(parts[1]));
@@ -99,10 +142,22 @@ class SystemControlService {
     throw UnsupportedError('screenSize is not supported on this platform.');
   }
 
-  /// macOS only: the name of the frontmost application's process, for
-  /// use as the default `app` in findUiElement when the caller doesn't
-  /// specify one.
+  /// The name of the frontmost application, for use as the default
+  /// `app`/`process` in findUiElement/clickElement/elementAtPosition
+  /// when the caller doesn't specify one. On Android this is really
+  /// just for logging - the accessibility node tree calls below always
+  /// operate on the current window regardless of this value, since
+  /// Android has no per-app "tell process X" scoping the way macOS's
+  /// System Events does.
   Future<String> frontmostProcessName() async {
+    if (Platform.isAndroid) {
+      try {
+        return await _android.invokeMethod<String>('frontmostPackage') ?? '';
+      } catch (_) {
+        return '';
+      }
+    }
+    if (!Platform.isMacOS) return '';
     final result = await _run('osascript', [
       '-e',
       'tell application "System Events" to name of first process whose frontmost is true',
@@ -123,6 +178,14 @@ class SystemControlService {
     required String process,
     required String searchText,
   }) async {
+    if (Platform.isAndroid) {
+      final map = await _android.invokeMapMethod<String, dynamic>(
+        'findElement',
+        {'searchText': searchText},
+      );
+      if (map == null) return null;
+      return (x: map['x'] as int, y: map['y'] as int);
+    }
     if (!Platform.isMacOS) {
       throw UnsupportedError('findUiElement is only implemented on macOS.');
     }
@@ -205,6 +268,17 @@ class SystemControlService {
     required String process,
     required String searchText,
   }) async {
+    if (Platform.isAndroid) {
+      final map = await _android.invokeMapMethod<String, dynamic>(
+        'clickElement',
+        {'searchText': searchText},
+      );
+      if (map == null) return null;
+      final x = map['x'] as int;
+      final y = map['y'] as int;
+      lastMousePosition = (x: x, y: y);
+      return (x: x, y: y);
+    }
     if (!Platform.isMacOS) {
       throw UnsupportedError('clickElement is only implemented on macOS.');
     }
@@ -288,6 +362,18 @@ class SystemControlService {
     required int x,
     required int y,
   }) async {
+    if (Platform.isAndroid) {
+      final map = await _android.invokeMapMethod<String, dynamic>(
+        'elementAtPosition',
+        {'x': x, 'y': y},
+      );
+      if (map == null) return null;
+      return (
+        role: map['role'] as String? ?? '',
+        name: map['name'] as String? ?? '',
+        description: map['description'] as String? ?? '',
+      );
+    }
     if (!Platform.isMacOS) {
       throw UnsupportedError('elementAtPosition is only implemented on macOS.');
     }
@@ -364,7 +450,18 @@ class SystemControlService {
   String _escapeAppleScriptString(String s) =>
       s.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
 
+  /// On Android there's no persistent mouse cursor to move - a
+  /// touchscreen has no "hover" state the way a mouse does, so this is
+  /// purely a visual aim marker: it updates lastMousePosition (which
+  /// AgentController draws as the cursor crosshair on screenshots) so
+  /// Gemini can still confirm where it's about to tap before actually
+  /// calling click(), but nothing happens on-device yet - the real
+  /// touch event only fires in click()/drag() below.
   Future<void> moveMouse(int x, int y) async {
+    if (Platform.isAndroid) {
+      lastMousePosition = (x: x, y: y);
+      return;
+    }
     if (Platform.isLinux) {
       await _run('xdotool', ['mousemove', '$x', '$y']);
     } else if (Platform.isMacOS) {
@@ -385,6 +482,27 @@ class SystemControlService {
   }) async {
     if (x != null && y != null) {
       await moveMouse(x, y);
+    }
+
+    if (Platform.isAndroid) {
+      // button ('right'/'middle') has no touchscreen equivalent - a tap
+      // is a tap. Real coordinates always come from lastMousePosition,
+      // set either by the x/y above or a prior move_mouse/click_element.
+      final tx = lastMousePosition?.x;
+      final ty = lastMousePosition?.y;
+      if (tx == null || ty == null) {
+        throw StateError(
+          'click on Android needs an x/y (or a prior move_mouse/'
+          'click_element to aim from) - there\'s no cursor position to '
+          'tap without one.',
+        );
+      }
+      await _android.invokeMethod('tap', {'x': tx, 'y': ty});
+      if (doubleClick) {
+        await Future.delayed(const Duration(milliseconds: 120));
+        await _android.invokeMethod('tap', {'x': tx, 'y': ty});
+      }
+      return;
     }
 
     if (Platform.isLinux) {
@@ -426,6 +544,17 @@ class SystemControlService {
   }
 
   Future<void> drag(int startX, int startY, int endX, int endY) async {
+    if (Platform.isAndroid) {
+      await _android.invokeMethod('swipe', {
+        'x1': startX,
+        'y1': startY,
+        'x2': endX,
+        'y2': endY,
+        'durationMs': 300,
+      });
+      lastMousePosition = (x: endX, y: endY);
+      return;
+    }
     if (Platform.isLinux) {
       await _run('xdotool', ['mousemove', '$startX', '$startY']);
       await _run('xdotool', ['mousedown', '1']);
@@ -447,6 +576,23 @@ class SystemControlService {
   }
 
   Future<void> typeText(String text) async {
+    if (Platform.isAndroid) {
+      // Sets the text of whatever editable field currently has focus
+      // via the accessibility node's ACTION_SET_TEXT - there's no
+      // system-wide raw-keystroke injection API available to a regular
+      // app on Android, so a field must actually be focused first
+      // (tap it via click()/click_element beforehand).
+      final ok =
+          await _android.invokeMethod<bool>('setText', {'text': text}) ??
+              false;
+      if (!ok) {
+        throw StateError(
+          'No focused editable field to type into - tap the field '
+          'first (click_element or click), then try again.',
+        );
+      }
+      return;
+    }
     if (Platform.isLinux) {
       await _run('xdotool', ['type', '--clearmodifiers', text]);
     } else if (Platform.isMacOS) {
@@ -464,6 +610,22 @@ class SystemControlService {
   }
 
   Future<void> pressKey(String key) async {
+    if (Platform.isAndroid) {
+      // Only a fixed set of global/IME actions are available on
+      // Android (no arbitrary-key injection API for a regular app) -
+      // see AiControlAccessibilityService.kt's pressKey handler for the
+      // exact supported set (back, home, recents, enter, tab, delete).
+      final ok = await _android
+              .invokeMethod<bool>('pressKey', {'key': key.toLowerCase()}) ??
+          false;
+      if (!ok) {
+        throw StateError(
+          '"$key" is not a supported key on Android - supported: back, '
+          'home, recents, enter, tab, delete/backspace.',
+        );
+      }
+      return;
+    }
     if (Platform.isLinux) {
       // xdotool's own key syntax already accepts "ctrl+alt+t" directly.
       await _run('xdotool', ['key', key]);
@@ -479,6 +641,16 @@ class SystemControlService {
   }
 
   Future<void> scroll(String direction, {int amount = 3}) async {
+    if (Platform.isAndroid) {
+      // Implemented as a swipe gesture in the opposite direction (the
+      // usual touchscreen convention - swiping up scrolls content
+      // down), centered on lastMousePosition or the screen middle.
+      await _android.invokeMethod('scroll', {
+        'direction': direction,
+        'amount': amount,
+      });
+      return;
+    }
     if (Platform.isLinux) {
       final btn = switch (direction) {
         'up' => '4',

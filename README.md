@@ -1,9 +1,13 @@
 # AI as a Human
 
-A Flutter desktop app that puts Gemini in voice mode and lets it operate
-your computer like a person would: it listens, watches your screen, and
-acts — moving the mouse, clicking, typing, and scrolling — while
-narrating what it's doing out loud.
+A Flutter app that puts Gemini in voice mode and lets it operate your
+device like a person would: it listens, watches the screen, and acts —
+moving the mouse, clicking, typing, and scrolling — while narrating what
+it's doing out loud. Started as macOS/Linux/Windows desktop-only; there's
+now an Android build too, though it currently only covers input control
+(tap/type/click_element via Android's Accessibility Service) - Gemini
+can't see the phone's screen yet, that's a separate follow-up (see the
+Android setup section below).
 
 ## How it works
 
@@ -372,6 +376,370 @@ talking..." box in the UI to drive a session instead.
    ```
    flutter clean && flutter pub get && cd macos && pod install --repo-update && cd ..
    ```
+
+3b. **Android only, current status: input control works, screen sharing
+    does not yet.** Android has no shell/subprocess model at all (no
+    `xdotool`/`cliclick` equivalent), so `SystemControlService` talks to
+    a bundled `AccessibilityService` over a `MethodChannel` instead -
+    the direct Android counterpart of macOS's System Events. Real
+    screen capture needs `MediaProjection` plus a foreground service (a
+    persistent notification, its own consent dialog, a whole separate
+    video pipeline) - a substantially bigger piece of native code that
+    isn't built yet, so for now Gemini can hear you and act
+    (`click_element`, `find_ui_element`, `element_at_position`,
+    `type_text`, `press_key`, `scroll`, `click`/`drag` by raw
+    coordinate) but can't see the screen. `ScreenCaptureService`
+    reports this clearly and `AgentController` just skips screenshot
+    pushing for the rest of the session rather than failing.
+
+    Unlike the desktop platforms, this needs real hand-written native
+    code that `flutter create` won't regenerate, so `android/` is
+    checked into this repo (see the comment in `.gitignore`) rather
+    than excluded like `macos/`/`linux/`/`windows/`. Set it up once:
+
+    1. Scaffold the platform folder if you don't have it yet:
+       ```
+       flutter create --platforms=android .
+       ```
+    2. Add to `android/app/src/main/AndroidManifest.xml` - the
+       `RECORD_AUDIO` permission near the top, and the service
+       declaration inside `<application>`:
+       ```xml
+       <uses-permission android:name="android.permission.RECORD_AUDIO" />
+       ```
+       ```xml
+       <service
+           android:name=".AiControlAccessibilityService"
+           android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+           android:exported="false">
+           <intent-filter>
+               <action android:name="android.accessibilityservice.AccessibilityService" />
+           </intent-filter>
+           <meta-data
+               android:name="android.accessibilityservice"
+               android:resource="@xml/accessibility_service_config" />
+       </service>
+       ```
+    3. Create `android/app/src/main/res/xml/accessibility_service_config.xml`:
+       ```xml
+       <?xml version="1.0" encoding="utf-8"?>
+       <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+           android:accessibilityEventTypes="typeAllMask"
+           android:accessibilityFeedbackType="feedbackGeneric"
+           android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows"
+           android:canPerformGestures="true"
+           android:canRetrieveWindowContent="true"
+           android:description="@string/accessibility_service_description"
+           android:notificationTimeout="100" />
+       ```
+       And add the referenced string to
+       `android/app/src/main/res/values/strings.xml` (create it if it
+       doesn't exist):
+       ```xml
+       <resources>
+           <string name="accessibility_service_description">Lets AI as a Human find, tap, and type into on-screen elements on your behalf, the way a screen reader does.</string>
+       </resources>
+       ```
+    4. Create `android/app/src/main/kotlin/<your/package/path>/AiControlAccessibilityService.kt`
+       (same package/directory as the `MainActivity.kt` `flutter create`
+       generated for you) - the Android equivalent of
+       `system_control_service.dart`'s macOS branches: walks the
+       accessibility node tree to find/click elements (bounded depth
+       6 / 500 nodes, same idea as the macOS AppleScript's bounds) and
+       dispatches real tap/swipe gestures.
+       ```kotlin
+       package com.example.ai_as_ahuman // replace with your actual applicationId
+
+       import android.accessibilityservice.AccessibilityService
+       import android.accessibilityservice.GestureDescription
+       import android.graphics.Path
+       import android.graphics.Rect
+       import android.os.Bundle
+       import android.view.accessibility.AccessibilityEvent
+       import android.view.accessibility.AccessibilityNodeInfo
+
+       class AiControlAccessibilityService : AccessibilityService() {
+
+           companion object {
+               var instance: AiControlAccessibilityService? = null
+               private const val MAX_DEPTH = 6
+               private const val MAX_NODES = 500
+           }
+
+           override fun onServiceConnected() {
+               super.onServiceConnected()
+               instance = this
+           }
+
+           override fun onDestroy() {
+               super.onDestroy()
+               instance = null
+           }
+
+           override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+           override fun onInterrupt() {}
+
+           fun frontmostPackage(): String? = rootInActiveWindow?.packageName?.toString()
+
+           fun screenSize(): Pair<Int, Int> {
+               val metrics = resources.displayMetrics
+               return Pair(metrics.widthPixels, metrics.heightPixels)
+           }
+
+           private class Counter(var count: Int = 0)
+
+           private fun search(
+               node: AccessibilityNodeInfo?,
+               searchText: String,
+               depth: Int,
+               counter: Counter
+           ): AccessibilityNodeInfo? {
+               if (node == null || depth > MAX_DEPTH || counter.count > MAX_NODES) return null
+               counter.count++
+               val text = node.text?.toString() ?: ""
+               val desc = node.contentDescription?.toString() ?: ""
+               if (text.contains(searchText, ignoreCase = true) ||
+                   desc.contains(searchText, ignoreCase = true)
+               ) {
+                   return node
+               }
+               for (i in 0 until node.childCount) {
+                   val found = search(node.getChild(i), searchText, depth + 1, counter)
+                   if (found != null) return found
+               }
+               return null
+           }
+
+           fun findElement(searchText: String): Map<String, Int>? {
+               val root = rootInActiveWindow ?: return null
+               val found = search(root, searchText, 0, Counter()) ?: return null
+               val bounds = Rect()
+               found.getBoundsInScreen(bounds)
+               return mapOf("x" to bounds.centerX(), "y" to bounds.centerY())
+           }
+
+           fun clickElement(searchText: String): Map<String, Int>? {
+               val root = rootInActiveWindow ?: return null
+               val found = search(root, searchText, 0, Counter()) ?: return null
+               val bounds = Rect()
+               found.getBoundsInScreen(bounds)
+               if (!found.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                   // Some elements (e.g. a text label inside a clickable
+                   // parent) aren't directly clickable - walk up to the
+                   // nearest clickable ancestor and click that instead.
+                   var parent = found.parent
+                   var depth = 0
+                   while (parent != null && depth < MAX_DEPTH) {
+                       if (parent.isClickable && parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                           break
+                       }
+                       parent = parent.parent
+                       depth++
+                   }
+               }
+               return mapOf("x" to bounds.centerX(), "y" to bounds.centerY())
+           }
+
+           private fun smallestAt(
+               node: AccessibilityNodeInfo?,
+               x: Int,
+               y: Int,
+               depth: Int,
+               counter: Counter,
+               best: Rect,
+               bestNode: Array<AccessibilityNodeInfo?>
+           ) {
+               if (node == null || depth > 8 || counter.count > 600) return
+               counter.count++
+               val bounds = Rect()
+               node.getBoundsInScreen(bounds)
+               if (bounds.contains(x, y)) {
+                   val area = bounds.width().toLong() * bounds.height().toLong()
+                   val bestArea = best.width().toLong() * best.height().toLong()
+                   if (bestNode[0] == null || area < bestArea) {
+                       best.set(bounds)
+                       bestNode[0] = node
+                   }
+                   for (i in 0 until node.childCount) {
+                       smallestAt(node.getChild(i), x, y, depth + 1, counter, best, bestNode)
+                   }
+               }
+           }
+
+           fun elementAtPosition(x: Int, y: Int): Map<String, String>? {
+               val root = rootInActiveWindow ?: return null
+               val best = Rect()
+               val bestNode = arrayOfNulls<AccessibilityNodeInfo>(1)
+               smallestAt(root, x, y, 0, Counter(), best, bestNode)
+               val node = bestNode[0] ?: return null
+               return mapOf(
+                   "role" to (node.className?.toString() ?: ""),
+                   "name" to (node.text?.toString() ?: ""),
+                   "description" to (node.contentDescription?.toString() ?: "")
+               )
+           }
+
+           fun setTextOnFocusedNode(text: String): Boolean {
+               val focused = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return false
+               val args = Bundle()
+               args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+               return focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+           }
+
+           fun pressKey(key: String): Boolean {
+               return when (key) {
+                   "back" -> performGlobalAction(GLOBAL_ACTION_BACK)
+                   "home" -> performGlobalAction(GLOBAL_ACTION_HOME)
+                   "recents" -> performGlobalAction(GLOBAL_ACTION_RECENTS)
+                   "enter" -> rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                       ?.performAction(AccessibilityNodeInfo.ACTION_IME_ENTER) ?: false
+                   "tab" -> rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                       ?.performAction(AccessibilityNodeInfo.ACTION_NEXT_HTML_ELEMENT) ?: false
+                   "delete", "backspace" -> {
+                       val focused = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return false
+                       val args = Bundle()
+                       args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
+                       focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                   }
+                   else -> false
+               }
+           }
+
+           fun tap(x: Int, y: Int) {
+               val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
+               val stroke = GestureDescription.StrokeDescription(path, 0, 50)
+               dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
+           }
+
+           fun swipe(x1: Int, y1: Int, x2: Int, y2: Int, durationMs: Long) {
+               val path = Path().apply {
+                   moveTo(x1.toFloat(), y1.toFloat())
+                   lineTo(x2.toFloat(), y2.toFloat())
+               }
+               val stroke = GestureDescription.StrokeDescription(path, 0, durationMs)
+               dispatchGesture(GestureDescription.Builder().addStroke(stroke).build(), null, null)
+           }
+
+           fun scroll(direction: String, amount: Int) {
+               val metrics = resources.displayMetrics
+               val cx = metrics.widthPixels / 2
+               val cy = metrics.heightPixels / 2
+               val delta = 200 * amount
+               // Swiping is the inverse of the resulting scroll direction.
+               val (x1, y1, x2, y2) = when (direction) {
+                   "up" -> listOf(cx, cy - delta / 2, cx, cy + delta / 2)
+                   "down" -> listOf(cx, cy + delta / 2, cx, cy - delta / 2)
+                   "left" -> listOf(cx - delta / 2, cy, cx + delta / 2, cy)
+                   else -> listOf(cx + delta / 2, cy, cx - delta / 2, cy)
+               }
+               swipe(x1, y1, x2, y2, 300)
+           }
+       }
+       ```
+    5. Edit `android/app/src/main/kotlin/<your/package/path>/MainActivity.kt`
+       to register the `MethodChannel` the Dart side calls
+       (`ai_as_ahuman/accessibility`) and route it to the service above:
+       ```kotlin
+       package com.example.ai_as_ahuman // replace with your actual applicationId
+
+       import android.content.Intent
+       import android.provider.Settings
+       import android.text.TextUtils
+       import io.flutter.embedding.android.FlutterActivity
+       import io.flutter.embedding.engine.FlutterEngine
+       import io.flutter.plugin.common.MethodChannel
+
+       class MainActivity : FlutterActivity() {
+           private val channelName = "ai_as_ahuman/accessibility"
+
+           override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+               super.configureFlutterEngine(flutterEngine)
+               MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
+                   .setMethodCallHandler { call, result ->
+                       val service = AiControlAccessibilityService.instance
+                       when (call.method) {
+                           "isServiceEnabled" -> result.success(isAccessibilityServiceEnabled())
+                           "openAccessibilitySettings" -> {
+                               startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                               result.success(null)
+                           }
+                           "screenSize" -> {
+                               if (service == null) {
+                                   result.error("NO_SERVICE", "Accessibility service not enabled", null)
+                               } else {
+                                   val (w, h) = service.screenSize()
+                                   result.success(mapOf("width" to w, "height" to h))
+                               }
+                           }
+                           "frontmostPackage" -> result.success(service?.frontmostPackage())
+                           "findElement" -> result.success(
+                               service?.findElement(call.argument<String>("searchText") ?: "")
+                           )
+                           "clickElement" -> result.success(
+                               service?.clickElement(call.argument<String>("searchText") ?: "")
+                           )
+                           "elementAtPosition" -> result.success(
+                               service?.elementAtPosition(
+                                   call.argument<Int>("x") ?: 0,
+                                   call.argument<Int>("y") ?: 0
+                               )
+                           )
+                           "tap" -> {
+                               service?.tap(call.argument<Int>("x") ?: 0, call.argument<Int>("y") ?: 0)
+                               result.success(null)
+                           }
+                           "swipe" -> {
+                               service?.swipe(
+                                   call.argument<Int>("x1") ?: 0, call.argument<Int>("y1") ?: 0,
+                                   call.argument<Int>("x2") ?: 0, call.argument<Int>("y2") ?: 0,
+                                   (call.argument<Int>("durationMs") ?: 300).toLong()
+                               )
+                               result.success(null)
+                           }
+                           "scroll" -> {
+                               service?.scroll(
+                                   call.argument<String>("direction") ?: "down",
+                                   call.argument<Int>("amount") ?: 3
+                               )
+                               result.success(null)
+                           }
+                           "setText" -> result.success(
+                               service?.setTextOnFocusedNode(call.argument<String>("text") ?: "") ?: false
+                           )
+                           "pressKey" -> result.success(
+                               service?.pressKey(call.argument<String>("key") ?: "") ?: false
+                           )
+                           else -> result.notImplemented()
+                       }
+                   }
+           }
+
+           private fun isAccessibilityServiceEnabled(): Boolean {
+               val expectedComponent = "$packageName/.AiControlAccessibilityService"
+               val enabledServices = Settings.Secure.getString(
+                   contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+               ) ?: return false
+               val splitter = TextUtils.SimpleStringSplitter(':')
+               splitter.setString(enabledServices)
+               while (splitter.hasNext()) {
+                   if (splitter.next().equals(expectedComponent, ignoreCase = true)) return true
+               }
+               return false
+           }
+       }
+       ```
+    6. `android/app/build.gradle`'s `minSdkVersion`/`minSdk` needs to be
+       at least **24** (Android 7.0) - `dispatchGesture` isn't available
+       below that. Raise it if the generated default is lower.
+    7. `flutter run -d <your-device-id>` (`flutter devices` to list a
+       connected phone/emulator), then click "Start voice session" - the
+       app will open Accessibility Settings for you the first time;
+       find "AI as a Human" and enable it, then start the session again.
+
+    None of this Kotlin has been compiled or run - I don't have an
+    Android SDK/emulator to test with here, the same limitation as the
+    macOS AppleScript earlier in this project. Expect to iterate on it
+    against a real device/emulator.
 
 4. Get a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey).
 

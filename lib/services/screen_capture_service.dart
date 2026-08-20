@@ -161,7 +161,26 @@ class ScreenCaptureService {
   /// macOS requires explicit Screen Recording consent before any capture
   /// will actually produce an image - screen_capturer doesn't trigger that
   /// prompt itself, so this asks for it up front. No-op elsewhere.
+  ///
+  /// Android isn't "elsewhere" here, though: screen capture there needs
+  /// MediaProjection plus a foreground service (a real user-visible
+  /// notification, a persistent capture session, and its own consent
+  /// dialog) - a substantially bigger piece of native code than
+  /// SystemControlService's Accessibility-based input control, and not
+  /// built yet. Throwing a clear, specific error here (rather than
+  /// letting `screen_capturer` itself fail with an opaque
+  /// MissingPluginException on first real use) lets AgentController
+  /// disable screenshot pushing for the rest of the session instead of
+  /// retrying and failing on every timer tick.
   Future<void> ensurePermission() async {
+    if (Platform.isAndroid) {
+      throw UnsupportedError(
+        'Screen sharing on Android is not implemented yet (needs '
+        'MediaProjection + a foreground service) - Gemini can still '
+        'hear you and control the screen via click_element/'
+        'find_ui_element/type_text/press_key, just without seeing it.',
+      );
+    }
     if (!Platform.isMacOS) return;
     final status = await FlutterMacosPermissions.requestScreenRecording();
     if (!status.isGranted) {

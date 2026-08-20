@@ -39,6 +39,13 @@ class AgentController extends ChangeNotifier {
   /// mouse calls operate in. Fetched once at session start.
   ({int width, int height})? _realScreenSize;
 
+  /// False when ScreenCaptureService.ensurePermission() failed at
+  /// session start - currently always false on Android, which has no
+  /// screen capture implementation yet (see its doc comment). Screenshot
+  /// pushing is skipped entirely rather than retrying and failing on
+  /// every _screenshotTimer tick.
+  bool _screenCaptureAvailable = true;
+
   /// True from the moment Gemini's reply audio starts until shortly
   /// after its turn ends. Mic audio is never forwarded during this
   /// window (see the micStream listener in start()) so its own
@@ -82,16 +89,29 @@ class AgentController extends ChangeNotifier {
         _realScreenSize = await _system.screenSize();
         debugPrint('[AgentController] real screen size: $_realScreenSize');
       } catch (e, st) {
+        // Also covers Android in its current (input-only) phase - see
+        // ScreenCaptureService.ensurePermission's doc comment. Screen
+        // capture stays off for the rest of the session rather than
+        // retrying and failing on every _screenshotTimer tick.
+        _screenCaptureAvailable = false;
         debugPrint('[AgentController] screen permission failed: $e\n$st');
         _addMessage(ChatRole.system, 'Screen capture unavailable: $e');
       }
 
-      // Triggers the Accessibility/Automation prompts up front (macOS
-      // only, no-op elsewhere) rather than waiting for whichever tool
-      // call Gemini happens to make first - see the doc comment on
-      // ensureAccessibilityPermission for why this is the only real
-      // mechanism available.
-      await _system.ensureAccessibilityPermission();
+      // Triggers the Accessibility/Automation prompts up front (macOS)
+      // or checks/opens the Accessibility settings screen (Android)
+      // rather than waiting for whichever tool call Gemini happens to
+      // make first - see the doc comment on ensureAccessibilityPermission
+      // for why this is the only real mechanism available on either
+      // platform. On Android specifically this can throw (the user has
+      // to manually enable the service; there's no way to wait for that
+      // synchronously), so it's surfaced as a system message rather
+      // than failing the whole session start.
+      try {
+        await _system.ensureAccessibilityPermission();
+      } catch (e) {
+        _addMessage(ChatRole.system, '$e');
+      }
 
       _wireLiveServiceEvents();
       await _live.connect(
@@ -116,7 +136,9 @@ class AgentController extends ChangeNotifier {
         }
       }
 
-      await _pushScreenshot();
+      if (_screenCaptureAvailable) {
+        await _pushScreenshot();
+      }
 
       if (!_live.isConnected) {
         // The socket already died (e.g. closed right after setup) before
@@ -128,18 +150,20 @@ class AgentController extends ChangeNotifier {
         return;
       }
 
-      _screenshotTimer = Timer.periodic(
-        AppConfig.screenshotInterval,
-        (_) {
-          // Skip the ambient frame entirely while Gemini is speaking (or
-          // in the unmute grace period right after) - that's exactly
-          // when socket contention with the outgoing audio stream shows
-          // up as audible playback stutter, and the screen usually
-          // hasn't changed mid-reply anyway.
-          if (assistantSpeaking) return;
-          _pushScreenshot(includeOverlay: false, ambient: true);
-        },
-      );
+      if (_screenCaptureAvailable) {
+        _screenshotTimer = Timer.periodic(
+          AppConfig.screenshotInterval,
+          (_) {
+            // Skip the ambient frame entirely while Gemini is speaking (or
+            // in the unmute grace period right after) - that's exactly
+            // when socket contention with the outgoing audio stream shows
+            // up as audible playback stutter, and the screen usually
+            // hasn't changed mid-reply anyway.
+            if (assistantSpeaking) return;
+            _pushScreenshot(includeOverlay: false, ambient: true);
+          },
+        );
+      }
 
       state = SessionState.live;
       _addMessage(
