@@ -148,6 +148,94 @@ class SystemControlService {
     return (x: x, y: y);
   }
 
+  /// macOS only: asks the Accessibility API for the *smallest* UI
+  /// element whose bounding box actually contains the real-screen point
+  /// (x, y) - a reverse lookup ("what is under the cursor right now"),
+  /// complementing findUiElement's forward lookup ("where is the
+  /// element named X"). Picking the smallest matching element (rather
+  /// than the first) avoids returning some large container that also
+  /// happens to overlap the point instead of the specific control
+  /// there. Same bounded search as findUiElement (depth 8 / 600
+  /// elements visited). Returns null if nothing could be identified.
+  Future<({String role, String name, String description})?>
+      elementAtPosition({
+    required String process,
+    required int x,
+    required int y,
+  }) async {
+    if (!Platform.isMacOS) {
+      throw UnsupportedError('elementAtPosition is only implemented on macOS.');
+    }
+    final escapedProcess = _escapeAppleScriptString(process);
+
+    final script = '''
+      property elementCount : 0
+      property bestArea : -1
+      property bestRole : ""
+      property bestName : ""
+      property bestDesc : ""
+
+      on searchInElement(elem, targetX, targetY, depth)
+        if depth > 8 then return
+        set elementCount to elementCount + 1
+        if elementCount > 600 then return
+        try
+          set p to position of elem
+          set s to size of elem
+          set ex to item 1 of p
+          set ey to item 2 of p
+          set ew to item 1 of s
+          set eh to item 2 of s
+          if targetX >= ex and targetX <= (ex + ew) and targetY >= ey and targetY <= (ey + eh) then
+            set thisArea to ew * eh
+            if bestArea = -1 or thisArea < bestArea then
+              set bestArea to thisArea
+              set bestRole to ""
+              try
+                set bestRole to (role of elem) as text
+              end try
+              set bestName to ""
+              try
+                set bestName to (name of elem) as text
+              end try
+              set bestDesc to ""
+              try
+                set bestDesc to (description of elem) as text
+              end try
+            end if
+            try
+              set kids to UI elements of elem
+              repeat with kid in kids
+                my searchInElement(kid, targetX, targetY, depth + 1)
+              end repeat
+            end try
+          end if
+        end try
+      end searchInElement
+
+      tell application "System Events"
+        if not (exists process "$escapedProcess") then return "NOTFOUND"
+        tell process "$escapedProcess"
+          my searchInElement(it, $x, $y, 0)
+        end tell
+      end tell
+
+      if bestArea is -1 then
+        return "NOTFOUND"
+      else
+        return bestRole & "|||" & bestName & "|||" & bestDesc
+      end if
+    ''';
+
+    final result = await _run('osascript', ['-e', script]);
+    final output = result.stdout.toString().trim();
+    if (output == 'NOTFOUND' || output.isEmpty) return null;
+
+    final parts = output.split('|||');
+    if (parts.length != 3) return null;
+    return (role: parts[0], name: parts[1], description: parts[2]);
+  }
+
   String _escapeAppleScriptString(String s) =>
       s.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
 
