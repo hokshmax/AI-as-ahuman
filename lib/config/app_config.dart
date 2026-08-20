@@ -1,3 +1,5 @@
+import 'dart:ui' show Size;
+
 /// Runtime configuration for the Gemini Live connection.
 ///
 /// The API key is never hardcoded. Pass it at launch with:
@@ -55,4 +57,14 @@ class AppConfig {
   /// a continuously updated view of the screen - genuine screen sharing
   /// rather than only seeing a frame when it explicitly asks for one.
   static const Duration screenshotInterval = Duration(seconds: 3);
+
+  /// Sizes for the floating always-on-top overlay window (desktop only
+  /// - see FloatingShell). Collapsed is just big enough for the Siri-like
+  /// orb, a status line, and the expand/close buttons; expanded reveals
+  /// the full chat transcript and input bar. Shared between main.dart
+  /// (the window's initial size) and FloatingShell (resized on toggle),
+  /// so both agree exactly rather than risking drift between two
+  /// separately hand-typed constants.
+  static const Size floatingCollapsedSize = Size(260, 96);
+  static const Size floatingExpandedSize = Size(420, 620);
 }

@@ -208,6 +208,51 @@ Not implemented on Linux/Windows yet - all three throw
 `UnsupportedError` there, which surfaces as a normal tool error Gemini
 falls back from.
 
+### Floating overlay UI (desktop) / full-screen UI (Android)
+
+On macOS/Windows/Linux, `FloatingShell` (`lib/screens/floating_shell.dart`)
+*is* the app - there's no separate full-size app window behind it. Using
+`window_manager`, `main.dart` opens one small, frameless, transparent,
+always-on-top window, and the whole UI lives inside it:
+
+- **Collapsed** (the default): a small rounded pill just big enough for
+  a Siri-style animated orb, a one-line status ("Listening...",
+  "Speaking...", "Tap to start"), an expand ("more") button, and a close
+  button. Draggable anywhere on screen via `DragToMoveArea`, since a
+  frameless window has no OS-provided title bar to drag by.
+- **Expanded** (tap the "more" button): the same window resizes
+  (`windowManager.setSize(..., animate: true)`) into a taller panel
+  revealing the full chat transcript and text input
+  (`AssistantPanel`, shared with the mobile view below), with a
+  collapse button to shrink back down.
+- **Close**: stops the session and closes the window
+  (`windowManager.close()`) - this is genuinely quitting the app, not
+  just hiding it.
+
+The orb itself (`lib/widgets/siri_orb.dart`, `SiriOrb`) is state-driven,
+not real audio-amplitude-driven (no mic/playback level data is plumbed
+up to it - state alone is simpler and keeps this reliable): a slow gray
+"breathing" pulse when idle, amber when connecting, cyan/blue expanding
+rings when listening, purple/pink faster rings when Gemini is actually
+speaking (`AgentController.assistantSpeaking`) - `orbStateFor()` is the
+one place that mapping happens, so every place an orb is rendered stays
+in sync.
+
+Android has no `window_manager` implementation, and a floating overlay
+doesn't fit a phone's own full-screen UI paradigm anyway, so
+`FloatingShell` renders a normal full-screen `Scaffold` with an `AppBar`
+there instead (still showing the same animated orb next to the title) -
+see `isFloatingDesktopOverlay` in `floating_shell.dart` for the branch.
+
+None of the `window_manager` integration has been run - I have no
+desktop GUI to actually launch and see this render here, the same
+limitation as everything else native in this project. If the window
+doesn't come up properly transparent/frameless on first try, check
+`window_manager`'s own setup docs for any additional
+`macos/Runner/MainFlutterWindow.swift` (or Windows/Linux equivalent)
+changes it expects beyond what's already in this repo's `macos/`
+setup instructions above.
+
 ### Coordinate grid + cursor marker
 
 Testing showed the biggest source of misplaced clicks wasn't a
@@ -804,6 +849,9 @@ lib/
     screen_capture_service.dart   screenshot capture + downscale
     system_control_service.dart  mouse/keyboard automation per OS
     agent_controller.dart        wires everything together
-  screens/chat_screen.dart        voice session UI
-  widgets/                        chat bubble, status dot
+  screens/floating_shell.dart      root widget - floating overlay (desktop) or full-screen (Android)
+  widgets/
+    siri_orb.dart                  animated Siri-style state-driven orb
+    assistant_panel.dart           chat transcript + input bar (shared by both hosts above)
+    chat_bubble.dart                one transcript message
 ```

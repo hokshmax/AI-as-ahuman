@@ -28,6 +28,10 @@ dependencies:
   path_provider: ^2.1.3
   uuid: ^4.4.0
 
+  # Floating always-on-top overlay window (desktop only - macOS/Windows/
+  # Linux; no Android/iOS implementation, see FloatingShell)
+  window_manager: ^0.4.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

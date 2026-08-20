@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'screens/chat_screen.dart';
+import 'screens/floating_shell.dart';
 
 class AiAsAHumanApp extends StatelessWidget {
   const AiAsAHumanApp({super.key});
@@ -15,7 +15,7 @@ class AiAsAHumanApp extends StatelessWidget {
         brightness: Brightness.dark,
         useMaterial3: true,
       ),
-      home: const ChatScreen(),
+      home: const FloatingShell(),
     );
   }
 }
