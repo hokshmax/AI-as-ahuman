@@ -307,6 +307,32 @@ class AgentController extends ChangeNotifier {
             result = {'result': 'found', 'x': found.x, 'y': found.y};
           }
 
+        case 'element_at_position':
+          final ex = call.args['x'] as int;
+          final ey = call.args['y'] as int;
+          final atProcess = (call.args['app'] as String?) ??
+              await _system.frontmostProcessName();
+          final elementHere = await _system.elementAtPosition(
+            process: atProcess,
+            x: ex,
+            y: ey,
+          );
+          if (elementHere == null) {
+            _logAction('element_at_position($ex, $ey in $atProcess) -> nothing');
+            result = {'result': 'nothing identified at that position'};
+          } else {
+            _logAction(
+              'element_at_position($ex, $ey in $atProcess) -> '
+              '${elementHere.role} "${elementHere.name}"',
+            );
+            result = {
+              'result': 'found',
+              'role': elementHere.role,
+              'name': elementHere.name,
+              'description': elementHere.description,
+            };
+          }
+
         case 'move_mouse':
           final (x, y) = _toScreenCoords(
             call.args['x'] as int,
