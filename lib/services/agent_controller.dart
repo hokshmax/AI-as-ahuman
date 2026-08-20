@@ -336,6 +336,33 @@ class AgentController extends ChangeNotifier {
           }
           result = {'result': 'screenshot captured and sent'};
 
+        case 'click_element':
+          final elName = call.args['name'] as String;
+          final elProcess = (call.args['app'] as String?) ??
+              await _system.frontmostProcessName();
+          final clicked = await _system.clickElement(
+            process: elProcess,
+            searchText: elName,
+          );
+          if (clicked == null) {
+            _logAction('click_element("$elName" in $elProcess) -> not found');
+            result = {
+              'error': 'No UI element matching "$elName" found in '
+                  '"$elProcess". Fall back to find_ui_element or the '
+                  'screenshot coordinate grid instead.',
+            };
+          } else {
+            _logAction(
+              'click_element("$elName" in $elProcess) -> clicked at '
+              '(${clicked.x}, ${clicked.y})',
+            );
+            result = {
+              'result': 'clicked',
+              'x': clicked.x,
+              'y': clicked.y,
+            };
+          }
+
         case 'find_ui_element':
           final name = call.args['name'] as String;
           final process = (call.args['app'] as String?) ??

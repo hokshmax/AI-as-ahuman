@@ -191,6 +191,88 @@ class SystemControlService {
     return (x: x, y: y);
   }
 
+  /// macOS only: finds a UI element the same way findUiElement does, but
+  /// instead of just reporting its position, tells System Events to
+  /// `click` the actual element reference directly - no coordinate math
+  /// or cliclick involved at all. The OS moves the real cursor to the
+  /// element itself and presses it, using its own exact knowledge of
+  /// where that is, which is as reliable as clicking something ever
+  /// gets. Returns the real-screen center position it clicked (so
+  /// callers can update lastMousePosition for the cursor marker/log),
+  /// or null if nothing matched (same bounded search as findUiElement:
+  /// depth 5, 400 elements visited).
+  Future<({int x, int y})?> clickElement({
+    required String process,
+    required String searchText,
+  }) async {
+    if (!Platform.isMacOS) {
+      throw UnsupportedError('clickElement is only implemented on macOS.');
+    }
+    final escapedProcess = _escapeAppleScriptString(process);
+    final escapedSearch = _escapeAppleScriptString(searchText);
+
+    final script = '''
+      property elementCount : 0
+
+      on searchInElement(elem, searchText, depth)
+        if depth > 5 then return missing value
+        set elementCount to elementCount + 1
+        if elementCount > 400 then return missing value
+        try
+          set elemName to ""
+          try
+            set elemName to (name of elem) as text
+          end try
+          set elemDesc to ""
+          try
+            set elemDesc to (description of elem) as text
+          end try
+          set isMatch to false
+          ignoring case
+            if elemName contains searchText or elemDesc contains searchText then
+              set isMatch to true
+            end if
+          end ignoring
+          if isMatch then return elem
+        end try
+        try
+          set kids to UI elements of elem
+          repeat with kid in kids
+            set r to my searchInElement(kid, searchText, depth + 1)
+            if r is not missing value then return r
+          end repeat
+        end try
+        return missing value
+      end searchInElement
+
+      tell application "System Events"
+        if not (exists process "$escapedProcess") then return "NOTFOUND"
+        tell process "$escapedProcess"
+          set foundElem to my searchInElement(it, "$escapedSearch", 0)
+          if foundElem is missing value then return "NOTFOUND"
+          set p to position of foundElem
+          set s to size of foundElem
+          set px to (item 1 of p) + ((item 1 of s) / 2)
+          set py to (item 2 of p) + ((item 2 of s) / 2)
+          click foundElem
+          return (px as integer as text) & "," & (py as integer as text)
+        end tell
+      end tell
+    ''';
+
+    final result = await _run('osascript', ['-e', script]);
+    final output = result.stdout.toString().trim();
+    if (output == 'NOTFOUND' || output.isEmpty) return null;
+
+    final parts = output.split(',');
+    if (parts.length != 2) return null;
+    final x = int.tryParse(parts[0].trim());
+    final y = int.tryParse(parts[1].trim());
+    if (x == null || y == null) return null;
+    lastMousePosition = (x: x, y: y);
+    return (x: x, y: y);
+  }
+
   /// macOS only: asks the Accessibility API for the *smallest* UI
   /// element whose bounding box actually contains the real-screen point
   /// (x, y) - a reverse lookup ("what is under the cursor right now"),

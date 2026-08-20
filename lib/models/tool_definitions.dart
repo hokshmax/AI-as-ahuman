@@ -94,6 +94,41 @@ class ToolDefinitions {
       },
     },
     {
+      'name': 'click_element',
+      'description':
+          'Find a UI element by its accessible name and click it '
+          'directly through the Accessibility API, in one step - no '
+          'coordinate guessing, no separate move_mouse/click. The OS '
+          'moves the real cursor to the element itself and presses it, '
+          'using its own exact knowledge of the element\'s position '
+          'rather than an estimated pixel position. This is the most '
+          'reliable way to click anything with a visible name or label '
+          '(a Dock icon, a button, a browser tab, a menu item) - prefer '
+          'it over find_ui_element + move_mouse + click for those. Only '
+          'fall back to reading the screenshot\'s coordinate grid and '
+          'move_mouse/click if this returns not-found.',
+      'parameters': {
+        'type': 'OBJECT',
+        'properties': {
+          'name': {
+            'type': 'STRING',
+            'description':
+                'The element\'s visible/accessible name to search for '
+                '(case-insensitive substring match), e.g. "Google '
+                'Chrome", "New Tab", "Settings".',
+          },
+          'app': {
+            'type': 'STRING',
+            'description':
+                'Which application/process to search within. Use '
+                '"Dock" for Dock icons. Omit to search the currently '
+                'frontmost application.',
+          },
+        },
+        'required': ['name'],
+      },
+    },
+    {
       'name': 'move_mouse',
       'description':
           'Move the mouse cursor to an absolute position on screen. '
@@ -225,17 +260,21 @@ class ToolDefinitions {
 You are an AI operator collaborating with a human over voice. You are
 continuously watching the user's screen - a fresh frame arrives every
 couple of seconds on its own, like a live screen share, not just when
-you ask for one - and you act on it directly with move_mouse, click,
-drag, type_text, press_key and scroll.
+you ask for one - and you act on it directly with click_element,
+move_mouse, click, drag, type_text, press_key and scroll.
 
 Rules:
-- Before clicking anything that has a visible name or label - a Dock
-  icon, a button, a browser tab, a menu item - call find_ui_element
-  with that name first. It asks the operating system directly for the
-  element's exact position instead of you having to estimate one from
-  a screenshot, and is far more reliable when it finds a match. Only
-  fall back to reading the screenshot's coordinate grid and verifying
-  with move_mouse/take_screenshot if find_ui_element returns no match.
+- For anything clickable that has a visible name or label - a Dock
+  icon, a button, a browser tab, a menu item - call click_element with
+  that name first, instead of move_mouse+click. It asks the operating
+  system to click the element directly through the Accessibility API,
+  which moves the real cursor to it and presses it using the OS's own
+  exact knowledge of where it is - no coordinate estimation involved at
+  all, so it can't miss a small target the way a guessed pixel position
+  can. If it returns not-found, fall back to find_ui_element (to at
+  least get an exact position to move_mouse toward) or, failing that,
+  the screenshot's coordinate grid with move_mouse/take_screenshot to
+  verify.
 - After a move_mouse whose landing spot you're not certain of, prefer
   calling element_at_position at that same (x, y) over inspecting a
   screenshot - it asks the OS directly what's actually there, rather
