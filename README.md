@@ -76,6 +76,22 @@ speaker ◀──PCM16── (audio out)                         │
   (`_processScreenshot`, a top-level function since isolate entry points
   can't be instance methods or closures) - the main isolate stays free to
   keep pumping audio in and out while a screenshot is being built.
+
+  Still wasn't enough - the ambient stream sharing one WebSocket with
+  mic/speaker audio meant every tick's outbound bytes were real
+  contention on that connection regardless of which isolate produced
+  them, showing up as both playback stutter and slower turn-taking right
+  as the user stopped talking (the outgoing image competing with the
+  final mic chunks / the server's response for the same pipe). Two more
+  changes: `AppConfig.ambientScreenshotMaxWidth`/`ambientScreenshotJpegQuality`
+  (800px/q55, vs 1280px/q80 for `take_screenshot`/`move_mouse`) shrink
+  periodic frames specifically, since the ambient stream was never
+  pixel-precise or used to aim clicks anyway; and the periodic timer now
+  skips its tick entirely while `assistantSpeaking` is true, so no
+  ambient frame is sent at all while Gemini's reply is actively being
+  streamed and played - exactly when contention matters most.
+  `screenshotInterval` was also lengthened from 2s to 3s.
+
 ### Automatic self-interruption prevention
 
 Listening is always-on - no push-to-talk button. The mic is only ever

@@ -195,6 +195,8 @@ class ScreenCaptureService {
     int? cursorX,
     int? cursorY,
     bool includeOverlay = true,
+    int? maxWidth,
+    int? quality,
   }) async {
     final dir = await getTemporaryDirectory();
     final path = '${dir.path}/screenshot_${_uuid.v4()}.png';
@@ -225,8 +227,8 @@ class ScreenCaptureService {
 
     final result = await compute(_processScreenshot, (
       pngBytes: pngBytes,
-      maxWidth: AppConfig.screenshotMaxWidth,
-      quality: AppConfig.screenshotJpegQuality,
+      maxWidth: maxWidth ?? AppConfig.screenshotMaxWidth,
+      quality: quality ?? AppConfig.screenshotJpegQuality,
       screenWidth: screenWidth,
       screenHeight: screenHeight,
       cursorX: cursorX,

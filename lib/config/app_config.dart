@@ -34,12 +34,25 @@ class AppConfig {
   /// Screenshots are downscaled and compressed before upload to keep
   /// each round trip small. Testing showed 768px/q55 was too lossy for
   /// precisely locating small targets (Dock icons, toolbar buttons);
-  /// trading some speed for clearer images.
+  /// trading some speed for clearer images. Used for take_screenshot and
+  /// every move_mouse step, where precise coordinates actually matter.
   static const int screenshotMaxWidth = 1280;
   static const int screenshotJpegQuality = 80;
+
+  /// The periodic ambient stream (AgentController._screenshotTimer) only
+  /// needs to be good enough to keep Gemini roughly aware of what's on
+  /// screen, not pixel-precise - it never has the coordinate grid, and
+  /// isn't used to aim clicks. Sending it at full size/quality shared
+  /// the same WebSocket as mic/speaker audio and was measurably
+  /// contending with it: audible stutters in Gemini's speech, and
+  /// noticeably slower turn-taking right as the user stopped talking.
+  /// Smaller/lossier ambient frames mean less to capture, encode, and
+  /// push over the wire on every tick.
+  static const int ambientScreenshotMaxWidth = 800;
+  static const int ambientScreenshotJpegQuality = 55;
 
   /// How often a fresh screenshot is pushed automatically, so Gemini has
   /// a continuously updated view of the screen - genuine screen sharing
   /// rather than only seeing a frame when it explicitly asks for one.
-  static const Duration screenshotInterval = Duration(seconds: 2);
+  static const Duration screenshotInterval = Duration(seconds: 3);
 }

@@ -123,7 +123,15 @@ class AgentController extends ChangeNotifier {
 
       _screenshotTimer = Timer.periodic(
         AppConfig.screenshotInterval,
-        (_) => _pushScreenshot(includeOverlay: false),
+        (_) {
+          // Skip the ambient frame entirely while Gemini is speaking (or
+          // in the unmute grace period right after) - that's exactly
+          // when socket contention with the outgoing audio stream shows
+          // up as audible playback stutter, and the screen usually
+          // hasn't changed mid-reply anyway.
+          if (assistantSpeaking) return;
+          _pushScreenshot(includeOverlay: false, ambient: true);
+        },
       );
 
       state = SessionState.live;
@@ -216,7 +224,17 @@ class AgentController extends ChangeNotifier {
   /// still sent for every explicit take_screenshot call and every
   /// move_mouse step, where the precise coordinate reference actually
   /// matters.
-  Future<void> _pushScreenshot({bool includeOverlay = true}) async {
+  ///
+  /// [ambient] additionally shrinks the image itself
+  /// (AppConfig.ambientScreenshotMaxWidth/Quality) - the periodic stream
+  /// doesn't need to be pixel-precise, and a smaller/lossier frame means
+  /// less to capture, encode and push over the same WebSocket carrying
+  /// mic/speaker audio, where contention was showing up as audible
+  /// playback stutter and slower turn-taking.
+  Future<void> _pushScreenshot({
+    bool includeOverlay = true,
+    bool ambient = false,
+  }) async {
     try {
       final shot = await _screen.captureJpeg(
         screenWidth: _realScreenSize?.width,
@@ -224,6 +242,8 @@ class AgentController extends ChangeNotifier {
         cursorX: _system.lastMousePosition?.x,
         cursorY: _system.lastMousePosition?.y,
         includeOverlay: includeOverlay,
+        maxWidth: ambient ? AppConfig.ambientScreenshotMaxWidth : null,
+        quality: ambient ? AppConfig.ambientScreenshotJpegQuality : null,
       );
       // Clean image first (nothing drawn over the real UI), then the
       // grid/cursor overlay as a separate reference image - see
