@@ -124,6 +124,20 @@ guard around `_live.sendAudioChunk` in `AgentController.start()`) if
 you'd rather have true barge-in and are on headphones where the echo
 problem doesn't apply.
 
+### Why so much of this is hand-built
+
+Anthropic's Claude API has a purpose-built "computer use" tool - give it
+a screenshot, it hands back click/type/scroll actions in a format
+designed for exactly this task. Gemini's Live API has no equivalent
+built in, so this project has to build that whole layer itself:
+`take_screenshot`/`move_mouse` as plain function-calling tools, the
+coordinate grid + cursor marker overlay, and eventually the
+Accessibility-API-based tools (`click_element`, `find_ui_element`,
+`element_at_position`) as a way to sidestep pixel coordinates
+altogether. None of that would be necessary on top of a model with a
+native computer-use tool - it's specifically working around Gemini not
+having one.
+
 ### Coordinate mapping
 
 Testing showed Gemini's `move_mouse`/`click`/`drag` coordinates aren't
