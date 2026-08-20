@@ -396,10 +396,39 @@ class SystemControlService {
     );
     if (result.exitCode != 0) {
       throw StateError(
+        '${_permissionHint(result.stderr.toString())}'
         'Command failed: $executable ${args.join(' ')}\n${result.stderr}',
       );
     }
     return result;
+  }
+
+  /// macOS has no plugin (permission_handler included) that can check or
+  /// request Accessibility/Automation access directly - the only real
+  /// mechanism is to actually invoke the protected call and let the OS
+  /// prompt on its own. When it's been silently denied instead (no
+  /// prompt ever shown, or dismissed once), the failure is otherwise
+  /// just an opaque AppleScript/cliclick error message. Recognizing the
+  /// known denial text lets the error point straight at the fix instead
+  /// of making the user guess which of the two separate permission
+  /// panels is the problem.
+  String _permissionHint(String stderr) {
+    if (!Platform.isMacOS) return '';
+    final lower = stderr.toLowerCase();
+    if (lower.contains('not authorized') ||
+        lower.contains('-1743') ||
+        lower.contains('assistive access') ||
+        lower.contains('accessibility api is disabled')) {
+      return 'Likely a macOS permission problem, not a real command '
+          'error - check System Settings -> Privacy & Security -> '
+          'Accessibility AND -> Automation, and make sure "AI as a '
+          'Human" is enabled in both (Automation needs its "System '
+          'Events" sub-item checked too). If it isn\'t listed in either '
+          'yet, that panel not registering the app at all can also mean '
+          'Info.plist is missing NSAppleEventsUsageDescription - see '
+          'the README.\n\n';
+    }
+    return '';
   }
 
   Future<ProcessResult> _powershell(String script) async {
