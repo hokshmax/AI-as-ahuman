@@ -195,6 +195,19 @@ class AgentController extends ChangeNotifier {
     }));
 
     _subs.add(_live.interrupted.listen((_) {
+      // This is the *only* code path that stops Gemini's speech
+      // mid-sentence - flushPlayback() is never called anywhere else
+      // except AgentController.stop(). If the mic is muted whenever
+      // Gemini is speaking (assistantSpeaking) and the server is set to
+      // NO_INTERRUPTION, this shouldn't fire at all; logging it visibly
+      // (not just in the debug console) makes it possible to confirm
+      // whether that's actually still happening versus something else
+      // (a dropped connection, a stalled tool call) looking similar.
+      _addMessage(
+        ChatRole.system,
+        'Gemini\'s reply was interrupted by the server (unexpected with '
+        'NO_INTERRUPTION enabled).',
+      );
       unawaited(_audio.flushPlayback());
     }));
 
