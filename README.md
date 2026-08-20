@@ -64,6 +64,18 @@ speaker ◀──PCM16── (audio out)                         │
   step, where precise coordinates genuinely matter; the ambient stream
   is just for keeping up with what's currently on screen.
 
+  Even a single-image periodic frame was still causing audible cuts in
+  Gemini's speech, though - `ScreenCaptureService.captureJpeg`'s actual
+  image work (PNG decode, resize, JPEG encode, and grid drawing when
+  requested) is genuinely CPU-heavy, and it was running synchronously on
+  the *same isolate* that receives Gemini's audio over the WebSocket and
+  feeds it to the speaker. Every screenshot tick blocked that isolate for
+  however long the image processing took, which is exactly what a
+  mid-sentence audio stutter every couple of seconds looks like. That
+  work now runs via `compute()` on a background isolate
+  (`_processScreenshot`, a top-level function since isolate entry points
+  can't be instance methods or closures) - the main isolate stays free to
+  keep pumping audio in and out while a screenshot is being built.
 ### Automatic self-interruption prevention
 
 Listening is always-on - no push-to-talk button. The mic is only ever
