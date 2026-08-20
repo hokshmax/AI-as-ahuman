@@ -115,29 +115,40 @@ would reintroduce coordinate drift - not yet handled.
 
 The tools Gemini can call are declared in
 `lib/models/tool_definitions.dart`: `take_screenshot`, `find_ui_element`,
-`move_mouse`, `click`, `drag`, `type_text`, `press_key`, `scroll`.
+`element_at_position`, `move_mouse`, `click`, `drag`, `type_text`,
+`press_key`, `scroll`.
 
-### Accessibility-based element lookup (`find_ui_element`, macOS only)
+### Accessibility-based element lookup (macOS only)
 
-Vision-based coordinate guessing (grid overlay, cursor marker, all
-below) helps, but it's still guessing. `find_ui_element` sidesteps that
-entirely for anything with a name: `SystemControlService
-.findUiElement()` asks macOS's Accessibility API (via `System Events`)
-directly for the exact real-screen position of a UI element - a Dock
-icon, button, tab, menu item - by searching its name/description,
-instead of Gemini estimating a pixel position from a screenshot. The
-OS already knows precisely where every element is; there's no reason
-to guess when this works. The search recurses through the target
-process's UI element tree (bounded to depth 5 / 400 elements visited,
-so it fails safely rather than hanging on a huge tree like a complex
-web page) and returns the center of the first name/description match.
-The system prompt tells Gemini to try this before any click on a named
-element, falling back to the grid overlay only when it returns no
-match.
+Vision-based coordinate guessing (grid overlay, cursor marker, below)
+helps, but it's still guessing. Two tools sidestep that entirely for
+anything the Accessibility API can see, in opposite directions:
 
-Not implemented on Linux/Windows yet - `findUiElement` throws
-`UnsupportedError` there, so `find_ui_element` calls return an error
-result Gemini falls back from automatically.
+- **`find_ui_element`** (forward lookup - name to position):
+  `SystemControlService.findUiElement()` asks macOS's Accessibility API
+  (via `System Events`) directly for the exact real-screen position of
+  a UI element - a Dock icon, button, tab, menu item - by searching its
+  name/description. Recurses through the target process's UI element
+  tree (bounded to depth 5 / 400 elements visited, so it fails safely
+  rather than hanging on a huge tree like a complex web page) and
+  returns the center of the first name/description match.
+- **`element_at_position`** (reverse lookup - position to identity):
+  `SystemControlService.elementAtPosition()` asks what's at a given
+  real-screen point, for verifying where move_mouse actually landed
+  without needing to visually judge a screenshot. Recurses the same
+  bounded way, but keeps the *smallest* element whose bounding box
+  contains the point (depth 8 / 600 elements visited) rather than the
+  first match, so a large container that happens to also overlap the
+  point doesn't shadow the specific control actually there.
+
+The OS already knows precisely where every element is; there's no
+reason to guess when either of these works. The system prompt tells
+Gemini to try find_ui_element before any click on a named element and
+element_at_position to verify a move_mouse landing spot, falling back
+to the grid overlay only when they return no match.
+
+Not implemented on Linux/Windows yet - both throw `UnsupportedError`
+there, which surfaces as a normal tool error Gemini falls back from.
 
 ### Coordinate grid + cursor marker
 
