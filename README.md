@@ -268,7 +268,20 @@ talking..." box in the UI to drive a session instead.
    ```xml
    <key>NSMicrophoneUsageDescription</key>
    <string>AI as a Human needs the microphone to talk to Gemini.</string>
+   <key>NSAppleEventsUsageDescription</key>
+   <string>AI as a Human needs to send Apple Events to System Events to find and click on-screen elements accurately.</string>
    ```
+
+   The `NSAppleEventsUsageDescription` key is required for `find_ui_element`
+   and `element_at_position` (both drive `osascript`/"System Events" to
+   query the Accessibility tree) to even prompt for the Automation
+   permission they need. Without this key, macOS doesn't show a denial or
+   any dialog at all - it just silently fails the Apple Event every time,
+   which looks indistinguishable from "the app never asked." If you
+   already ran the app once without this key, also check **System
+   Settings → Privacy & Security → Automation** for a stale/missing
+   "AI as a Human" entry with "System Events" unchecked, and re-run after
+   adding the key if nothing is listed there yet.
 
    Mic permission is requested by the `record` package itself
    (`AudioRecorder.hasPermission()` in `AudioService.init()`) — it
