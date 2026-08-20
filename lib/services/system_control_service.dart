@@ -16,6 +16,49 @@ class SystemControlService {
   /// AgentController, which draws this position onto every capture.
   ({int x, int y})? lastMousePosition;
 
+  /// macOS only: proactively triggers the OS's Accessibility and
+  /// Automation permission prompts up front, at session start - the
+  /// same idea as ScreenCaptureService.ensurePermission() for Screen
+  /// Recording. Without this, the first prompt a user ever sees is
+  /// whichever tool call Gemini happens to make first, potentially deep
+  /// into a session, which reads as the app randomly failing rather
+  /// than a one-time setup step.
+  ///
+  /// There's no plugin (permission_handler included) that can check or
+  /// request these directly on macOS - the only real mechanism is
+  /// making the protected calls and letting the OS handle prompting
+  /// (see _permissionHint's doc comment for the fuller explanation).
+  /// So this just makes two deliberately harmless calls that each touch
+  /// one of the two separate permission surfaces:
+  ///   - listing System Events' processes needs Automation access (this
+  ///     app "wants to control System Events") - what find_ui_element
+  ///     and element_at_position rely on;
+  ///   - an empty keystroke touches the Accessibility-trust check
+  ///     (AXIsProcessTrusted) without actually typing anything - what
+  ///     cliclick and real keystrokes rely on.
+  /// Both failures are swallowed here: a genuinely denied permission
+  /// will surface again, this time with a clear hint, the moment a real
+  /// tool call needs it.
+  Future<void> ensureAccessibilityPermission() async {
+    if (!Platform.isMacOS) return;
+    try {
+      await _run('osascript', [
+        '-e',
+        'tell application "System Events" to get name of first process',
+      ]);
+    } catch (_) {
+      // Ignore - see doc comment above.
+    }
+    try {
+      await _run('osascript', [
+        '-e',
+        'tell application "System Events" to keystroke ""',
+      ]);
+    } catch (_) {
+      // Ignore - see doc comment above.
+    }
+  }
+
   /// The screen size in whatever coordinate space moveMouse/click/drag
   /// actually operate in - deliberately queried through the *same* tool
   /// used for those calls (not a separate plugin like screen_retriever),

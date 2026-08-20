@@ -86,6 +86,13 @@ class AgentController extends ChangeNotifier {
         _addMessage(ChatRole.system, 'Screen capture unavailable: $e');
       }
 
+      // Triggers the Accessibility/Automation prompts up front (macOS
+      // only, no-op elsewhere) rather than waiting for whichever tool
+      // call Gemini happens to make first - see the doc comment on
+      // ensureAccessibilityPermission for why this is the only real
+      // mechanism available.
+      await _system.ensureAccessibilityPermission();
+
       _wireLiveServiceEvents();
       await _live.connect(
         screenWidth: _realScreenSize?.width,

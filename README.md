@@ -333,10 +333,24 @@ talking..." box in the UI to drive a session instead.
    session". If you don't get a dialog and capture still fails,
    permission may have been silently denied already; check **System
    Settings → Privacy & Security → Microphone** and **→ Screen
-   Recording**, enable the app there, and relaunch it. The first
-   click/keystroke may similarly need **Accessibility** permission
-   granted the same way (macOS prompts for it the first time
-   `cliclick`/`osascript` actually runs).
+   Recording**, enable the app there, and relaunch it.
+
+   **Accessibility** and **Automation** permission (needed for every
+   click/keystroke/UI lookup) work the same way, but there's no plugin
+   API (permission_handler included) that can check or request either
+   of them directly on macOS - the only real mechanism is to actually
+   make a protected call and let the OS prompt on its own.
+   `SystemControlService.ensureAccessibilityPermission()` does this
+   proactively at session start (two deliberately harmless calls -
+   listing System Events' processes for Automation, an empty keystroke
+   for Accessibility) rather than waiting for whichever tool call
+   Gemini happens to make first, which could be deep into a session and
+   would otherwise read as the app randomly failing rather than a
+   one-time setup step. If a dialog still doesn't appear (or was
+   dismissed once), check **System Settings → Privacy & Security →
+   Accessibility** and **→ Automation** manually - `SystemControlService`
+   also recognizes denial-looking errors from real tool calls
+   afterwards and prepends a hint pointing at both panels.
 
    If you add any other plugin to `pubspec.yaml` *after* already running
    `flutter create`, do a clean rebuild so CocoaPods links it in:
