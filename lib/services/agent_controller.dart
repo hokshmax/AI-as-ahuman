@@ -123,7 +123,7 @@ class AgentController extends ChangeNotifier {
 
       _screenshotTimer = Timer.periodic(
         AppConfig.screenshotInterval,
-        (_) => _pushScreenshot(),
+        (_) => _pushScreenshot(includeOverlay: false),
       );
 
       state = SessionState.live;
@@ -207,13 +207,23 @@ class AgentController extends ChangeNotifier {
     }));
   }
 
-  Future<void> _pushScreenshot() async {
+  /// Pushes a fresh frame to Gemini. The grid/cursor overlay (a second
+  /// full image) is only included when [includeOverlay] is true - the
+  /// ambient periodic stream (see _screenshotTimer) sends the clean
+  /// image alone to keep steady-state bandwidth down, since doubling
+  /// every automatic frame turned out to be the main source of response
+  /// lag once continuous streaming was reintroduced. The overlay is
+  /// still sent for every explicit take_screenshot call and every
+  /// move_mouse step, where the precise coordinate reference actually
+  /// matters.
+  Future<void> _pushScreenshot({bool includeOverlay = true}) async {
     try {
       final shot = await _screen.captureJpeg(
         screenWidth: _realScreenSize?.width,
         screenHeight: _realScreenSize?.height,
         cursorX: _system.lastMousePosition?.x,
         cursorY: _system.lastMousePosition?.y,
+        includeOverlay: includeOverlay,
       );
       // Clean image first (nothing drawn over the real UI), then the
       // grid/cursor overlay as a separate reference image - see

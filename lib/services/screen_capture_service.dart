@@ -52,6 +52,7 @@ class ScreenCaptureService {
     int? screenHeight,
     int? cursorX,
     int? cursorY,
+    bool includeOverlay = true,
   }) async {
     final dir = await getTemporaryDirectory();
     final path = '${dir.path}/screenshot_${_uuid.v4()}.png';
@@ -94,7 +95,7 @@ class ScreenCaptureService {
     );
 
     Uint8List? overlayBytes;
-    if (screenWidth != null && screenHeight != null) {
+    if (includeOverlay && screenWidth != null && screenHeight != null) {
       final overlay = resized.clone();
       _drawCoordinateGrid(
         overlay,

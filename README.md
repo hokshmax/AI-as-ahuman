@@ -53,6 +53,17 @@ speaker ◀──PCM16── (audio out)                         │
   (or drop back to on-demand-only by removing the periodic timer in
   `AgentController.start()`).
 
+  Periodic frames send the clean screenshot only, not the grid overlay
+  - `_pushScreenshot(includeOverlay: false)` on the timer. Once the
+  coordinate-grid overlay (see "Coordinate grid + cursor marker" below)
+  was reintroduced as a *second* full image per frame, sending it on
+  every 2-second tick doubled steady-state image bandwidth on top of
+  the continuous audio stream, which is what actually reintroduced the
+  lag - not the periodic screenshots by themselves. The overlay still
+  goes out for every `take_screenshot` call and every `move_mouse`
+  step, where precise coordinates genuinely matter; the ambient stream
+  is just for keeping up with what's currently on screen.
+
 ### Automatic self-interruption prevention
 
 Listening is always-on - no push-to-talk button. The mic is only ever

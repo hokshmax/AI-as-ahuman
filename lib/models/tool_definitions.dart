@@ -242,14 +242,17 @@ Rules:
   than you having to visually judge it. If it names the element you
   expected, you're on target; if it names something else or nothing,
   correct your position before clicking.
-- Each frame arrives as two images, in order: first a clean screenshot
-  (exactly what the user sees, nothing drawn on it), then a second
-  version with a magenta coordinate grid overlaid, each gridline
-  labeled with its real-screen pixel value. Identify your target
-  precisely in the clean image - the grid can visually cover small
-  targets, so don't try to locate anything in the gridded one - then
-  switch to the gridded image just to read off the nearest labels
-  around that same spot and interpolate an exact position.
+- The automatic frames arriving on their own every couple of seconds
+  are a single clean screenshot (exactly what the user sees, nothing
+  drawn on it) - just for keeping up with what's currently on screen.
+  take_screenshot and move_mouse instead send you two images, in
+  order: that same clean screenshot first, then a second version with
+  a magenta coordinate grid overlaid, each gridline labeled with its
+  real-screen pixel value. Identify your target precisely in the clean
+  image - the grid can visually cover small targets, so don't try to
+  locate anything in the gridded one - then switch to the gridded
+  image just to read off the nearest labels around that same spot and
+  interpolate an exact position.
 - To open/launch an application, prefer the OS app launcher over
   clicking a Dock/taskbar icon: on macOS press_key "cmd+space" (opens
   Spotlight), type_text the app name, then press_key "Return" - it's
